@@ -1,4 +1,13 @@
-from setuptools import setup
+from setuptools import setup, Extension
+
+hasher_module = Extension('hasher',
+        sources=[
+            'hasher.c',
+            'keccak/KeccakNISTInterface.c',
+            'keccak/KeccakSponge.c',
+            'keccak/KeccakF-1600-reference.c',
+            'keccak/displayIntermediateValues.c',
+        ])
 
 setup(name='permafreeze',
       version='0.1',
@@ -16,6 +25,7 @@ setup(name='permafreeze',
 
       install_requires=[
           'boto',
-          'flask',
           ],
+
+      ext_modules=[hasher_module],
       )
