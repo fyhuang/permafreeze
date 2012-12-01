@@ -3,8 +3,8 @@ permafreeze
 
 Automatic incremental backup to Amazon Glacier and S3.
 
-Progress
-========
+Usage
+=====
 
 At the moment, permafreeze only implements file consistency checking. To install, simply clone this repository and `python setup.py install`. Use the `sample-config.ini` as a base for your own configuration file. If your configuration file is named `config.ini`, run:
 

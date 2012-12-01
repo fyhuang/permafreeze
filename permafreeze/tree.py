@@ -8,12 +8,13 @@ TREE_VER_P1 = 0
 TreeEntry = collections.namedtuple('TreeEntry', ['uukey', 'last_hashed'])
 
 class Tree(object):
-    def __init__(self, files, hashes):
+    def __init__(self, files={}, hashes={}, lastar=0):
         self.files = files
         self.hashes = hashes
+        self.lastar = lastar
 
     def copy(self):
-        return Tree(self.files.copy(), self.hashes.copy())
+        return Tree(self.files.copy(), self.hashes.copy(), self.lastar)
 
 
 def load_tree(data):
