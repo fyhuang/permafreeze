@@ -16,5 +16,7 @@ To hash all the files in your targets. Use:
 
 To check the consistency of all unmodified files in your targets.
 
-Targets
-=======
+Configuration File
+==================
+
+A barebones sample configuration file can be found in `sample-config.ini`. The various options and their values are described in `README-CONFIG.md`.
