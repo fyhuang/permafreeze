@@ -3,10 +3,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+
+#if defined(__linux__) || defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#endif
+
 #include "keccak/KeccakNISTInterface.h"
 
-#define READ_SIZE 1024*64
-#define NUM_HASH_BITS 256
+#define READ_SIZE (1024*64)
+#define NUM_HASH_BITS (512)
 #define NUM_HASH_BYTES (NUM_HASH_BITS / 8)
 #define NUM_SIZE_BYTES sizeof(uint64_t)
 
@@ -25,6 +34,35 @@ hasher_file_unique_key(PyObject *self, PyObject *args) {
         return NULL;
     }
 
+#if defined(__linux__) || defined(__APPLE__)
+    int fd = open(filename, O_RDONLY);
+    if (fd < 0)
+        return PyErr_SetFromErrno(PyExc_IOError);
+
+    struct stat sb;
+    if (fstat(fd, &sb) < 0)
+        return PyErr_SetFromErrno(PyExc_IOError);
+    uint64_t file_size = (uint64_t)sb.st_size;
+
+    void *file_ptr = mmap(NULL, file_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (file_ptr == MAP_FAILED)
+        return PyErr_SetFromErrno(PyExc_OSError);
+
+    // Generate hash
+    size_t num_blocks = file_size / READ_SIZE;
+    for (size_t i = 0; i < num_blocks; i++) {
+        size_t len = (i == num_blocks-1) ?
+            (file_size % READ_SIZE) :
+            READ_SIZE;
+        HashReturn result = Update(&state, file_ptr+(i*READ_SIZE), len*8);
+        if (result != SUCCESS) {
+            PyErr_SetString(PyExc_RuntimeError, "couldn't absorb data");
+            return NULL;
+        }
+    }
+
+    munmap(file_ptr, file_size);
+#else
     uint8_t buffer[READ_SIZE];
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL) {
@@ -47,6 +85,7 @@ hasher_file_unique_key(PyObject *self, PyObject *args) {
 
     uint64_t file_size = ftell(fp);
     fclose(fp);
+#endif
 
     uint8_t hash[NUM_HASH_BYTES];
     if (Final(&state, hash) != SUCCESS) {

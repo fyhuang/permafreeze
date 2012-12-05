@@ -7,7 +7,10 @@ hasher_module = Extension('hasher',
             'keccak/KeccakSponge.c',
             'keccak/KeccakF-1600-reference.c',
             'keccak/displayIntermediateValues.c',
-        ])
+        ],
+        
+        extra_compile_args=['-std=c99'],
+        )
 
 setup(name='permafreeze',
       version='0.1',
