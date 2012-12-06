@@ -13,6 +13,10 @@ import hasher
 from permafreeze import tree
 
 
+def uukey_and_size(filename):
+    csum, size = hasher.hash_and_size(filename)
+    return (csum + "{0:08x}".format(size), size)
+
 def do_check(cp, old_tree, root_path):
     total_files = 0
     skipped_files = 0
@@ -53,7 +57,7 @@ def do_check(cp, old_tree, root_path):
                 skipped_files += 1
                 continue
 
-            uukey = hasher.file_unique_key(full_path)
+            uukey, file_size = uukey_and_size(full_path)
             if uukey != old_entry.uukey:
                 print("WARNING: hash mismatch! {}".format(target_path))
                 errors.append(target_path)
@@ -105,7 +109,7 @@ def do_freeze(cp, old_tree, root_path):
                 pass
 
             # Hash and check if data already stored
-            uukey = hasher.file_unique_key(full_path)
+            uukey, file_size = uukey_and_size(full_path)
             store_data = False
             if uukey not in new_tree.hashes:
                 store_data = True
