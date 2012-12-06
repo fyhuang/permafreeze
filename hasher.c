@@ -3,27 +3,39 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "keccak/KeccakNISTInterface.h"
 
-#define READ_SIZE 1024*64
-#define NUM_HASH_BITS 256
+typedef struct
+{
+  uint64_t h[8], s[4], t[2];
+  int buflen, nullt;
+  uint8_t buf[128];
+} state512;
+void blake512_init( state512 *S );
+void blake512_update( state512 *S, const uint8_t *in, uint64_t inlen );
+void blake512_final( state512 *S, uint8_t *out );
+
+#define READ_SIZE (1024*64)
+#define NUM_HASH_BITS (512)
 #define NUM_HASH_BYTES (NUM_HASH_BITS / 8)
-#define NUM_SIZE_BYTES sizeof(uint64_t)
+
+/* Benchmark results (38MB file)
+ *
+ * keccak, mmap: 7.21s
+ * keccak, read: 7.48s
+ * blake,  read: 0.287s
+ */
 
 static PyObject *
-hasher_file_unique_key(PyObject *self, PyObject *args) {
+hasher_hash_and_size(PyObject *self, PyObject *args) {
     const char *filename;
 
     if (!PyArg_ParseTuple(args, "es", "utf8", &filename)) {
         return NULL;
     }
 
-    hashState state;
-    if (Init(&state, NUM_HASH_BITS) != SUCCESS) {
-        fprintf(stderr, "hasher: couldn't initialize Keccak\n");
-        PyErr_SetString(PyExc_RuntimeError, "couldn't initialize Keccak");
-        return NULL;
-    }
+    state512 state;
+    blake512_init(&state);
+
 
     uint8_t buffer[READ_SIZE];
     FILE *fp = fopen(filename, "rb");
@@ -36,55 +48,35 @@ hasher_file_unique_key(PyObject *self, PyObject *args) {
 
     while (!feof(fp)) {
         size_t read_bytes = fread(buffer, 1, READ_SIZE, fp);
-        HashReturn result = Update(&state, buffer, read_bytes*8);
-        if (result != SUCCESS) {
-            fprintf(stderr, "hasher: couldn't absorb data\n");
-            PyErr_SetString(PyExc_RuntimeError, "couldn't absorb data");
-            fclose(fp);
-            return NULL;
-        }
+        blake512_update(&state, buffer, read_bytes);
     }
 
-    uint64_t file_size = ftell(fp);
+    Py_ssize_t file_size = ftell(fp);
     fclose(fp);
 
-    uint8_t hash[NUM_HASH_BYTES];
-    if (Final(&state, hash) != SUCCESS) {
-        fprintf(stderr, "hasher: couldn't squeeze hash\n");
-        PyErr_SetString(PyExc_RuntimeError, "couldn't squeeze hash");
-        return NULL;
-    }
 
+    uint8_t hash[NUM_HASH_BYTES];
+    blake512_final(&state, hash);
 
     // Convert hash to ASCII
-    char hash_asc[NUM_HASH_BYTES*2 + NUM_SIZE_BYTES*2 + 1];
-    int i;
+    char hash_asc[NUM_HASH_BYTES*2];
     size_t off = 0;
-    for (i = 0; i < NUM_HASH_BYTES; i++) {
+    for (int i = 0; i < NUM_HASH_BYTES; i++) {
         sprintf(hash_asc+off, "%02x", hash[i]);
         off += 2;
     }
 
-    // Convert size to ASCII (little-endian)
-    uint8_t *fs_ptr = &file_size;
-    for (i = 0; i < NUM_SIZE_BYTES; i++) {
-        sprintf(hash_asc+off, "%02x", fs_ptr[i]);
-        off += 2;
-    }
-
-
-    if (off != NUM_HASH_BYTES*2 + NUM_SIZE_BYTES*2) {
+    if (off != NUM_HASH_BYTES*2) {
         PyErr_SetString(PyExc_RuntimeError, "wrong offset");
         return NULL;
     }
 
-    hash_asc[off] = '\0';
-    return Py_BuildValue("s", (char *)(&hash_asc[0]));
+    return Py_BuildValue("s#n", (char *)(&hash_asc[0]), NUM_HASH_BYTES*2, file_size);
 }
 
 
 static PyMethodDef HasherMethods[] = {
-    {"file_unique_key", hasher_file_unique_key, METH_VARARGS, "Return the unique key for a file"},
+    {"hash_and_size", hasher_hash_and_size, METH_VARARGS, "Return the hash of a file's contents and its size in bytes"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -95,6 +87,6 @@ inithasher(void) {
         return;
 
     PyModule_AddObject(m, "KEY_NUM_CHARS",
-            Py_BuildValue("i", NUM_HASH_BYTES*2 + NUM_SIZE_BYTES*2)
+            Py_BuildValue("i", NUM_HASH_BYTES*2)
             );
 }

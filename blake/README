@@ -1,0 +1,15 @@
+
+C implementation of BLAKE
+
+$ make
+
+and use as
+
+$ ./blake224 [file1] [file2] ... 
+$ ./blake256 [file1] [file2] ... 
+$ ./blake384 [file1] [file2] ... 
+$ ./blake512 [file1] [file2] ... 
+
+
+jeanphilippe.aumasson@gmail.com
+Sept 7, 2012

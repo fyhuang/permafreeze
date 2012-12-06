@@ -3,11 +3,11 @@ from setuptools import setup, Extension
 hasher_module = Extension('hasher',
         sources=[
             'hasher.c',
-            'keccak/KeccakNISTInterface.c',
-            'keccak/KeccakSponge.c',
-            'keccak/KeccakF-1600-reference.c',
-            'keccak/displayIntermediateValues.c',
-        ])
+            'blake/blake512.c',
+        ],
+        
+        extra_compile_args=['-std=c99'],
+        )
 
 setup(name='permafreeze',
       version='0.1',
