@@ -14,7 +14,7 @@ static PyObject *
 hasher_file_unique_key(PyObject *self, PyObject *args) {
     const char *filename;
 
-    if (!PyArg_ParseTuple(args, "s", &filename)) {
+    if (!PyArg_ParseTuple(args, "es", "utf8", &filename)) {
         return NULL;
     }
 

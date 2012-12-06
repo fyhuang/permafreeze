@@ -129,7 +129,7 @@ def do_freeze(cp, old_tree, root_path):
 def process_all(cp, func):
     targets = cp.options('targets')
     for t in targets:
-        root_path = cp.get('targets', t)
+        root_path = unicode(cp.get('targets', t))
 
         # Load old tree
         tree_local_fname = os.path.join(cp.get('options', 'config-dir'), 'tree-'+t)
@@ -141,6 +141,7 @@ def process_all(cp, func):
 
         # Do action and save tree
         new_tree = func(cp, old_tree, root_path)
+
         if new_tree is not None and \
                 not cp.getboolean('options', 'dry-run'):
             with open(tree_local_fname, 'wb') as f:
@@ -206,3 +207,6 @@ def parse_args():
 
     return aparser.parse_args()
 
+
+if __name__ == "__main__":
+    main()
