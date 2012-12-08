@@ -1,3 +1,5 @@
+from __future__ import division, absolute_import, print_function, unicode_literals
+
 import os
 import os.path
 import sys
@@ -51,7 +53,7 @@ def do_freeze(cp, old_tree, root_path):
         for fn in files:
             full_path = os.path.join(root, fn)
             target_path = os.path.join(prefix, fn)
-            sys.stdout.write('Processing {}... '.format(shorten(target_path)))
+            print('Processing {}... '.format(shorten(target_path)), end="")
             sys.stdout.flush()
             
             if should_skip(cp, target_path, full_path, old_tree):
