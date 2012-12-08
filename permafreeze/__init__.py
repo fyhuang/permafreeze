@@ -15,7 +15,7 @@ from permafreeze import tree
 
 def uukey_and_size(filename):
     csum, size = hasher.hash_and_size(filename)
-    return (csum + "{0:08x}".format(size), size)
+    return (csum + "{0:016x}".format(size), size)
 
 def do_check(cp, old_tree, root_path):
     total_files = 0
@@ -89,12 +89,16 @@ def do_freeze(cp, old_tree, root_path):
         for fn in files:
             full_path = os.path.join(root, fn)
             target_path = os.path.join(prefix, fn)
+            sys.stdout.write('Processing {}... '.format(target_path))
+            sys.stdout.flush()
             
             if should_skip(cp, target_path, full_path, old_tree):
+                print('I')
                 continue
 
             if os.path.islink(full_path):
                 # TODO
+                print('NI')
                 continue
 
             # Skip if not modified since last hashed
@@ -104,6 +108,7 @@ def do_freeze(cp, old_tree, root_path):
                 # Make sure the data is stored
                 if old_entry.uukey in old_tree.hashes:
                     if old_entry.last_hashed >= mtime_dt:
+                        print('I')
                         continue
             except KeyError:
                 pass
@@ -117,15 +122,14 @@ def do_freeze(cp, old_tree, root_path):
             # Update tree and archive
             new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
             if store_data:
-                print("Storing {} ({})".format(target_path, uukey))
                 new_tree.hashes[uukey] = "archive-name"
                 if cp.getboolean('options', 'dont-archive'):
-                    pass
+                    print('H {}'.format(uukey[:32]))
                 else:
                     raise NotImplementedError('Archiving not implemented yet')
 
             else:
-                print("Skipping {}".format(target_path))
+                print('I')
 
     # Store the new tree
     return new_tree
@@ -133,7 +137,7 @@ def do_freeze(cp, old_tree, root_path):
 def process_all(cp, func):
     targets = cp.options('targets')
     for t in targets:
-        root_path = cp.get('targets', t)
+        root_path = unicode(cp.get('targets', t))
 
         # Load old tree
         tree_local_fname = os.path.join(cp.get('options', 'config-dir'), 'tree-'+t)
@@ -145,6 +149,7 @@ def process_all(cp, func):
 
         # Do action and save tree
         new_tree = func(cp, old_tree, root_path)
+
         if new_tree is not None and \
                 not cp.getboolean('options', 'dry-run'):
             with open(tree_local_fname, 'wb') as f:
@@ -210,3 +215,6 @@ def parse_args():
 
     return aparser.parse_args()
 
+
+if __name__ == "__main__":
+    main()
