@@ -10,12 +10,24 @@ from datetime import datetime
 import ConfigParser as configparser
 
 import hasher
-from permafreeze import tree
-
 
 def uukey_and_size(filename):
     csum, size = hasher.hash_and_size(filename)
     return (csum + "{0:016x}".format(size), size)
+
+def shorten(filename, maxlen=58):
+    if len(filename) > maxlen:
+        hm = maxlen // 2
+        left = filename[:hm-3]
+        right = filename[-hm:]
+        return left + "..." + right
+    else:
+        return filename
+
+
+from permafreeze import tree
+from permafreeze.do_freeze import do_freeze
+
 
 def do_check(cp, old_tree, root_path):
     total_files = 0
@@ -73,66 +85,6 @@ def do_check(cp, old_tree, root_path):
     else:
         print("No errors.")
 
-
-def do_freeze(cp, old_tree, root_path):
-    if not os.path.isdir(root_path):
-        print("WARNING: {} doesn't exist or is not a directory".format(root_path))
-        return None
-
-    dry_run = cp.getboolean('options', 'dry-run')
-
-
-    new_tree = old_tree.copy()
-
-    for (root, dirs, files) in os.walk(root_path):
-        prefix = root[len(root_path):]
-        for fn in files:
-            full_path = os.path.join(root, fn)
-            target_path = os.path.join(prefix, fn)
-            sys.stdout.write('Processing {}... '.format(target_path))
-            sys.stdout.flush()
-            
-            if should_skip(cp, target_path, full_path, old_tree):
-                print('I')
-                continue
-
-            if os.path.islink(full_path):
-                # TODO
-                print('NI')
-                continue
-
-            # Skip if not modified since last hashed
-            mtime_dt = datetime.utcfromtimestamp(os.path.getmtime(full_path))
-            try:
-                old_entry = old_tree.files[target_path]
-                # Make sure the data is stored
-                if old_entry.uukey in old_tree.hashes:
-                    if old_entry.last_hashed >= mtime_dt:
-                        print('I')
-                        continue
-            except KeyError:
-                pass
-
-            # Hash and check if data already stored
-            uukey, file_size = uukey_and_size(full_path)
-            store_data = False
-            if uukey not in new_tree.hashes:
-                store_data = True
-
-            # Update tree and archive
-            new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
-            if store_data:
-                new_tree.hashes[uukey] = "archive-name"
-                if cp.getboolean('options', 'dont-archive'):
-                    print('H {}'.format(uukey[:32]))
-                else:
-                    raise NotImplementedError('Archiving not implemented yet')
-
-            else:
-                print('I')
-
-    # Store the new tree
-    return new_tree
 
 def process_all(cp, func):
     targets = cp.options('targets')
