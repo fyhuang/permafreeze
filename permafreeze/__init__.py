@@ -15,7 +15,7 @@ from permafreeze import tree
 
 def uukey_and_size(filename):
     csum, size = hasher.hash_and_size(filename)
-    return (csum + "{0:08x}".format(size), size)
+    return (csum + "{0:016x}".format(size), size)
 
 def do_check(cp, old_tree, root_path):
     total_files = 0
@@ -87,14 +87,19 @@ def do_freeze(cp, old_tree, root_path):
     for (root, dirs, files) in os.walk(root_path):
         prefix = root[len(root_path):]
         for fn in files:
+            target_path = os.path.join(prefix, fn)
+            sys.stdout.write('Processing {}... '.format(target_path))
+            sys.stdout.flush()
+
             if cp.getboolean('options', 'ignore-dotfiles') and \
                     fn[0] == '.':
+                print('I')
                 continue
 
             full_path = os.path.join(root, fn)
-            target_path = os.path.join(prefix, fn)
             if os.path.islink(full_path):
                 # TODO
+                print('NI')
                 continue
 
             # Skip if not modified since last hashed
@@ -104,6 +109,7 @@ def do_freeze(cp, old_tree, root_path):
                 # Make sure the data is stored
                 if old_entry.uukey in old_tree.hashes:
                     if old_entry.last_hashed >= mtime_dt:
+                        print('I')
                         continue
             except KeyError:
                 pass
@@ -117,15 +123,14 @@ def do_freeze(cp, old_tree, root_path):
             # Update tree and archive
             new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
             if store_data:
-                print("Storing {} ({})".format(target_path, uukey))
                 new_tree.hashes[uukey] = "archive-name"
                 if cp.getboolean('options', 'dont-archive'):
-                    pass
+                    print('H {}'.format(uukey[:32]))
                 else:
                     raise NotImplementedError('Archiving not implemented yet')
 
             else:
-                print("Skipping {}".format(target_path))
+                print('I')
 
     # Store the new tree
     return new_tree
