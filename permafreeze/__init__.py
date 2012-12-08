@@ -87,12 +87,12 @@ def do_freeze(cp, old_tree, root_path):
     for (root, dirs, files) in os.walk(root_path):
         prefix = root[len(root_path):]
         for fn in files:
-            if cp.getboolean('options', 'ignore-dotfiles') and \
-                    fn[0] == '.':
-                continue
-
             full_path = os.path.join(root, fn)
             target_path = os.path.join(prefix, fn)
+            
+            if should_skip(cp, target_path, full_path, old_tree):
+                continue
+
             if os.path.islink(full_path):
                 # TODO
                 continue
