@@ -1,3 +1,5 @@
+from __future__ import division, absolute_import, print_function, unicode_literals
+
 import os
 import os.path
 import sys
@@ -47,6 +49,7 @@ def do_freeze(cp, old_tree, root_path, extra):
 
     new_tree = old_tree.copy()
 
+<<<<<<< HEAD
     ar = archiver.Archiver(cp, old_tree.lastar+1, extra['target-name'])
     with closing(ar):
         for (root, dirs, files) in os.walk(root_path):
@@ -54,7 +57,7 @@ def do_freeze(cp, old_tree, root_path, extra):
             for fn in files:
                 full_path = os.path.join(root, fn)
                 target_path = os.path.join(prefix, fn)
-                sys.stdout.write('Processing {}... '.format(shorten(target_path)))
+                print('Processing {}... '.format(shorten(target_path)), end="")
                 sys.stdout.flush()
                 
                 if should_skip(cp, target_path, full_path, old_tree):
@@ -79,9 +82,8 @@ def do_freeze(cp, old_tree, root_path, extra):
                     if cp.getboolean('options', 'dont-archive'):
                         print('H {}'.format(uukey[:32]))
                     else:
-                        ar.add_file(full_path, uukey, file_size)
                         print('A {}'.format(uukey[:32]))
-
+                        ar.add_file(full_path, uukey, file_size)
                 else:
                     print('I')
 
