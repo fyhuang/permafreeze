@@ -16,6 +16,15 @@ To hash all the files in your targets. Use:
 
 To check the consistency of all unmodified files in your targets.
 
+Requirements
+============
+
+Currently:
+
+* Python 2.7
+* Boto 2.6.0-dev or higher (2.6.0 stable doesn't have full Glacier support)
+* An Amazon AWS account
+
 Configuration File
 ==================
 

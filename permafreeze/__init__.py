@@ -25,11 +25,11 @@ def shorten(filename, maxlen=58):
         return filename
 
 
-from permafreeze import tree
+from permafreeze import tree, archiver, storage
 from permafreeze.do_freeze import do_freeze
 
 
-def do_check(cp, old_tree, root_path):
+def do_check(cp, old_tree, root_path, extra):
     total_files = 0
     skipped_files = 0
     errors = []
@@ -86,26 +86,24 @@ def do_check(cp, old_tree, root_path):
         print("No errors.")
 
 
-def process_all(cp, func):
+def process_all(cp, func, extra):
     targets = cp.options('targets')
     for t in targets:
         root_path = unicode(cp.get('targets', t))
 
         # Load old tree
-        tree_local_fname = os.path.join(cp.get('options', 'config-dir'), 'tree-'+t)
-        if os.path.isfile(tree_local_fname):
-            with open(tree_local_fname, 'rb') as f:
-                old_tree = tree.load_tree(f.read())
-        else:
-            old_tree = tree.Tree()
+        rsi = storage.get_stored_info(cp, t)
+        old_tree = rsi.last_tree
 
         # Do action and save tree
-        new_tree = func(cp, old_tree, root_path)
+        new_extra_dict = dict(extra, **{
+            'target-name': t,
+            })
+        new_tree = func(cp, old_tree, root_path, new_extra_dict)
 
         if new_tree is not None and \
                 not cp.getboolean('options', 'dry-run'):
-            with open(tree_local_fname, 'wb') as f:
-                tree.save_tree(new_tree, f)
+            storage.save_tree(cp, t, new_tree)
 
 
 
@@ -121,6 +119,9 @@ def set_default_options(cp):
             'ignore-dotfiles': 'False',
             'ignore-config': 'True',
             'dont-archive': 'False', # DANGEROUS
+
+            's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
+            'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),
             }
 
     for (name, val) in opts.items():
@@ -128,7 +129,9 @@ def set_default_options(cp):
 
     setq('options', 'config-dir', DEFAULT_PF_CONFIG_DIR)
     if not os.path.isdir(cp.get('options', 'config-dir')):
-        os.mkdir(cp.get('options', 'config-dir'))
+        cdir = cp.get('options', 'config-dir')
+        os.mkdir(cdir)
+        os.mkdir(os.path.join(cdir, 'tmp'))
 
 
 def main():
@@ -146,16 +149,24 @@ def main():
     cp.read(args.config)
     set_default_options(cp)
 
+    # Do some sanity checks
+    if len(cp.options('targets')) == 0:
+        print("No targets set (edit your config file!)")
+        sys.exit(1)
+
     if args.dry_run:
         cp.set('options', 'dry-run', True)
 
+    # Run the actual command
     if args.command == 'freeze':
-        process_all(cp, do_freeze)
+        process_all(cp, do_freeze, {})
+
     elif args.command == 'check':
-        process_all(cp, do_check)
+        process_all(cp, do_check, {})
     else:
         print("Command not recognized: {}".format(args.command))
         sys.exit(1)
+
 
 def parse_args():
     aparser = argparse.ArgumentParser(description="permafreeze")

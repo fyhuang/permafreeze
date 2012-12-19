@@ -5,7 +5,7 @@ This README describes the configuration file format used by permafreeze. Look at
 
 # options
 
-`site-name`: name the collection of files you are archiving. Typically the hostname of the computer or some variant.
+`site-name`: name the collection of files you are archiving. Typically the hostname of the computer or some variant. Ideally a valid filename without periods.
 
 `s3-bucket-name`: the Amazon S3 bucket where archived trees will be stored.
 
@@ -26,7 +26,7 @@ myfiles=/path/to/files
 music=/home/user/Music
 ~~~
 
-Defines two targets: one called `myfiles` (whose root path on the filesystem is `/path/to/files`), and the other called `music` (with filesystem path `/home/user/Music`).
+Defines two targets: one called `myfiles` (whose root path on the filesystem is `/path/to/files`), and the other called `music` (with filesystem path `/home/user/Music`). Target names should ideally be valid filenames without periods.
 
 # Target sections
 
