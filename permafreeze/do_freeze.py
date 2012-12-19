@@ -49,7 +49,6 @@ def do_freeze(cp, old_tree, root_path, extra):
 
     new_tree = old_tree.copy()
 
-<<<<<<< HEAD
     ar = archiver.Archiver(cp, old_tree.lastar+1, extra['target-name'])
     with closing(ar):
         for (root, dirs, files) in os.walk(root_path):
@@ -66,7 +65,7 @@ def do_freeze(cp, old_tree, root_path, extra):
 
                 if os.path.islink(full_path):
                     # TODO
-                    print('NI')
+                    print('NotImpl')
                     continue
 
                 # Hash and check if data already stored
@@ -83,7 +82,8 @@ def do_freeze(cp, old_tree, root_path, extra):
                         print('H {}'.format(uukey[:32]))
                     else:
                         print('A {}'.format(uukey[:32]))
-                        ar.add_file(full_path, uukey, file_size)
+                        if not dry_run:
+                            ar.add_file(full_path, uukey, file_size)
                 else:
                     print('I')
 

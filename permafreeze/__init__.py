@@ -155,7 +155,7 @@ def main():
         sys.exit(1)
 
     if args.dry_run:
-        cp.set('options', 'dry-run', True)
+        cp.set('options', 'dry-run', 'True')
 
     # Run the actual command
     if args.command == 'freeze':
