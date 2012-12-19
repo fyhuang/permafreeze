@@ -118,7 +118,7 @@ def set_default_options(cp):
     opts = {'dry-run': 'False',
             'ignore-dotfiles': 'False',
             'ignore-config': 'True',
-            'dont-archive': 'False', # DANGEROUS
+            'dont-archive': 'False', # DANGEROUS: might be buggy
 
             's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
             'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),
@@ -156,6 +156,8 @@ def main():
 
     if args.dry_run:
         cp.set('options', 'dry-run', 'True')
+    if args.hash_only:
+        cp.set('options', 'dont-archive', 'True')
 
     # Run the actual command
     if args.command == 'freeze':
@@ -175,6 +177,7 @@ def parse_args():
             type=str,
             default=DEFAULT_PF_CONFIG_FILE)
     aparser.add_argument('-n', '--dry-run', action='store_true')
+    aparser.add_argument('-H', '--hash-only', action='store_true')
 
     return aparser.parse_args()
 
