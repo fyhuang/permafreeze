@@ -4,15 +4,21 @@
 #include <stdio.h>
 #include <stdint.h>
 
-typedef struct
-{
-  uint64_t h[8], s[4], t[2];
-  int buflen, nullt;
-  uint8_t buf[128];
-} state512;
-void blake512_init( state512 *S );
-void blake512_update( state512 *S, const uint8_t *in, uint64_t inlen );
-void blake512_final( state512 *S, uint8_t *out );
+#include "libpf.h"
+
+// Blake data structures
+extern "C" {
+    typedef struct
+    {
+    uint64_t h[8], s[4], t[2];
+    int buflen, nullt;
+    uint8_t buf[128];
+    } state512;
+
+    void blake512_init( state512 *S );
+    void blake512_update( state512 *S, const uint8_t *in, uint64_t inlen );
+    void blake512_final( state512 *S, uint8_t *out );
+}
 
 #define READ_SIZE (1024*64)
 #define NUM_HASH_BITS (512)
@@ -26,7 +32,7 @@ void blake512_final( state512 *S, uint8_t *out );
  */
 
 static PyObject *
-hasher_hash_and_size(PyObject *self, PyObject *args) {
+libpf_hash_and_size(PyObject *self, PyObject *args) {
     const char *filename;
 
     if (!PyArg_ParseTuple(args, "es", "utf8", &filename)) {
@@ -75,18 +81,34 @@ hasher_hash_and_size(PyObject *self, PyObject *args) {
 }
 
 
-static PyMethodDef HasherMethods[] = {
-    {"hash_and_size", hasher_hash_and_size, METH_VARARGS, "Return the hash of a file's contents and its size in bytes"},
+static PyMethodDef LibpfMethods[] = {
+    {"hash_and_size", libpf_hash_and_size, METH_VARARGS, "Return the hash of a file's contents and its size in bytes"},
     {NULL, NULL, 0, NULL}
 };
 
+extern "C" {
+    PyMODINIT_FUNC inithasher(void);
+}
+
 PyMODINIT_FUNC
-inithasher(void) {
-    PyObject *m = Py_InitModule("hasher", HasherMethods);
+initlibpf()
+{
+    libpf_SnappyFdType.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&libpf_SnappyFdType) < 0)
+        return;
+
+    PyObject *m = Py_InitModule3("libpf", LibpfMethods, "Native helpers for permafreeze");
     if (m == NULL)
         return;
 
     PyModule_AddObject(m, "KEY_NUM_CHARS",
-            Py_BuildValue("i", NUM_HASH_BYTES*2)
-            );
+            Py_BuildValue("i", NUM_HASH_BYTES*2));
+    PyModule_AddObject(m, "MODE_COMPRESS",
+            Py_BuildValue("i", MODE_COMPRESS));
+    PyModule_AddObject(m, "MODE_DECOMPRESS",
+            Py_BuildValue("i", MODE_DECOMPRESS));
+
+    Py_INCREF(&libpf_SnappyFdType);
+    PyModule_AddObject(m, "SnappyFd",
+            (PyObject *)&libpf_SnappyFdType);
 }

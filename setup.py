@@ -1,12 +1,13 @@
 from setuptools import setup, Extension
 
-hasher_module = Extension('hasher',
+hasher_module = Extension('libpf',
         sources=[
-            'hasher.c',
+            'libpf/hasher.cpp',
+            'libpf/snappyfd.cpp',
             'blake/blake512.c',
         ],
         
-        extra_compile_args=['-std=c99'],
+        extra_compile_args=[],
         )
 
 setup(name='permafreeze',

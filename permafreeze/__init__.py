@@ -9,10 +9,10 @@ import argparse
 from datetime import datetime
 import ConfigParser as configparser
 
-import hasher
+import libpf
 
 def uukey_and_size(filename):
-    csum, size = hasher.hash_and_size(filename)
+    csum, size = libpf.hash_and_size(filename)
     return (csum + "{0:016x}".format(size), size)
 
 def shorten(filename, maxlen=58):
