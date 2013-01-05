@@ -93,7 +93,6 @@ extern "C" {
 PyMODINIT_FUNC
 initlibpf()
 {
-    libpf_SnappyFdType.tp_new = PyType_GenericNew;
     if (PyType_Ready(&libpf_SnappyFdType) < 0)
         return;
 

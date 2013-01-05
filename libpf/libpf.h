@@ -1,11 +1,16 @@
 #include <cstdio>
 
+#include <string>
+#include <vector>
+
+#define DIV_RNDUP(a, b) (((a) + ((b)-1)) / (b))
+
 const int MODE_COMPRESS = 0;
 const int MODE_DECOMPRESS = 1;
 
 struct _TempData {
     std::vector<uint8_t> buffer;
-    std::vector<uint8_t> out_buffer;
+    std::string out_buffer;
 };
 
 struct libpf_SnappyFd {

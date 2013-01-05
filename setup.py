@@ -4,7 +4,12 @@ hasher_module = Extension('libpf',
         sources=[
             'libpf/hasher.cpp',
             'libpf/snappyfd.cpp',
+            'libpf/crc32c.c',
             'blake/blake512.c',
+        ],
+
+        libraries=[
+            'snappy',
         ],
         
         extra_compile_args=[],
