@@ -30,9 +30,9 @@ void _writeChunk(libpf_SnappyFd *self, chunkid_t chunkid, chunklen_t data_len, c
     chunklen_t len = data_len;
 
     if (chunkid == 0x00 || chunkid == 0x01) {
-        // Compute CRC
         data_len += sizeof(csum_t);
 
+        // Compute CRC
         csum = crc_init();
         csum = crc_update(csum, data, data_len);
         csum = crc_finalize(csum);
@@ -52,7 +52,49 @@ void _writeChunk(libpf_SnappyFd *self, chunkid_t chunkid, chunklen_t data_len, c
 }
 
 chunkret_t _readChunk(libpf_SnappyFd *self) {
-    // TODO
+    const size_t hdr_size = sizeof(chunkid_t) + sizeof(chunklen_t);
+    uint8_t header[hdr_size];
+
+    size_t bytes_read = fread(header, hdr_size, 1, self->fp);
+    if (bytes_read < hdr_size) {
+        return -1; // Error or EOF
+    }
+
+    chunkid_t cid = *((chunkid_t*)header);
+    chunklen_t len = *((chunklen_t*)(header+sizeof(chunkid_t)));
+
+    // Read data
+    self->td->buffer.resize(len);
+    bytes_read = fread(&self->td->buffer[0], len, 1, self->fp);
+    if (bytes_read < len) {
+        return -1;
+    }
+
+    if (cid == 0x00 || cid == 0x01) {
+        csum_t stored_csum = *((csum_t*)&self->td->buffer[0]);
+        // Compute checksum
+        csum_t csum = crc_init();
+        csum = crc_update(csum,
+                &self->td->buffer[sizeof(csum_t)],
+                len - sizeof(csum_t));
+        csum = crc_finalize(csum);
+        csum = CRC_MASK(csum);
+
+        if (csum != stored_csum) {
+            return -2; // Checksum mismatch
+        }
+
+        // Decompress
+        if (cid == 0x00) {
+            return _decompress(self);
+        }
+        else {
+            return len - sizeof(csum_t);
+        }
+    }
+    else {
+        return len;
+    }
 }
 
 float _compress(libpf_SnappyFd *self) {
@@ -64,6 +106,20 @@ float _compress(libpf_SnappyFd *self) {
     float ratio = (float)(self->td->out_buffer.size()) /
         self->td->buffer.size();
     return ratio;
+}
+
+chunkret_t _decompress(libpf_SnappyFd *self) {
+    // Returns length of uncompressed data
+    bool success = snappy::Uncompress((const char *)&self->td->buffer[0],
+            self->td->buffer.size(),
+            &self->td->out_buffer);
+
+    if (success) {
+        return self->td->out_buffer.size();
+    }
+    else {
+        return -1;
+    }
 }
 
 void _close(libpf_SnappyFd *self) {
