@@ -1,3 +1,5 @@
+from __future__ import division, absolute_import, print_function, unicode_literals
+
 import struct
 import pickle
 import collections
@@ -8,14 +10,16 @@ TREE_VER_P1 = 0
 TreeEntry = collections.namedtuple('TreeEntry', ['uukey', 'last_hashed'])
 
 class Tree(object):
-    def __init__(self, files={}, hashes={}, lastar=0, num_to_id={}):
+    def __init__(self, files={}, uukey_to_arnum={}, lastar=0, num_to_id={}):
+        # Map from file path to TreeEntry
         self.files = files
-        self.hashes = hashes
+        # Map from uukey to archive number
+        self.uukey_to_arnum = uukey_to_arnum
         self.lastar = lastar
         self.num_to_id = num_to_id
 
     def copy(self):
-        return Tree(self.files.copy(), self.hashes.copy(), self.lastar, self.num_to_id)
+        return Tree(self.files.copy(), self.uukey_to_arnum.copy(), self.lastar, self.num_to_id)
 
 
 def load_tree(data):
@@ -35,3 +39,11 @@ def save_tree(tree, fp):
     fp.write(b'PFTR')
     fp.write(struct.pack('!I', TREE_VER_P1))
     pickle.dump(tree, fp)
+
+def print_tree(tree):
+    for (path, te) in tree.files.items():
+        print('{}:\n\t{}'.format(path, te))
+        print()
+
+    print(tree.uukey_to_arnum)
+    print(tree.num_to_id)

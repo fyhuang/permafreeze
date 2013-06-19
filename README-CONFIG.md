@@ -11,7 +11,7 @@ This README describes the configuration file format used by permafreeze. Look at
 
 `glacier-vault-name`: the Glacier vault where data will be stored.
 
-`dont-archive`: (boolean [f]) if true, don't store any data, but hash files and store a tree (for consistency checking).
+`tree-only`: (boolean [f]) if true, don't store any data, but hash files and store a tree (for consistency checking).
 
 `ignore-dotfiles`: (boolean [f]) if true, ignore any files and directories starting with a period (`.`).
 

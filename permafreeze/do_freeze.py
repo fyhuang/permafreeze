@@ -9,7 +9,7 @@ import errno
 from datetime import datetime
 from contextlib import closing
 
-from permafreeze import uukey_and_size, shorten, tree, archiver
+from permafreeze import uukey_and_size, formatpath, tree, archiver
 
 def should_skip(cp, target_path, full_path, old_tree):
     if cp.getboolean('options', 'ignore-dotfiles'):
@@ -40,7 +40,7 @@ def should_skip(cp, target_path, full_path, old_tree):
     return False
 
 
-def do_freeze(cp, old_tree, root_path, extra):
+def do_freeze(cp, old_tree, root_path, ar, extra):
     if not os.path.isdir(root_path):
         print("WARNING: {} doesn't exist or is not a directory".format(root_path))
         return None
@@ -49,46 +49,46 @@ def do_freeze(cp, old_tree, root_path, extra):
 
     new_tree = old_tree.copy()
 
-    ar = archiver.Archiver(cp, old_tree.lastar+1, extra['target-name'])
-    with closing(ar):
-        for (root, dirs, files) in os.walk(root_path):
-            prefix = root[len(root_path):]
-            for fn in files:
-                full_path = os.path.join(root, fn)
-                target_path = os.path.join(prefix, fn)
-                print('Processing {}... '.format(shorten(target_path)), end="")
-                sys.stdout.flush()
-                
-                if should_skip(cp, target_path, full_path, old_tree):
-                    print('I')
-                    continue
+    for (root, dirs, files) in os.walk(root_path):
+        prefix = root[len(root_path):]
+        if len(prefix) == 0:
+            prefix = '/'
 
-                if os.path.islink(full_path):
-                    # TODO
-                    print('NotImpl')
-                    continue
+        for fn in files:
+            full_path = os.path.join(root, fn)
+            target_path = os.path.join(prefix, fn)
+            print(formatpath(target_path), end="")
+            sys.stdout.flush()
+            
+            if should_skip(cp, target_path, full_path, old_tree):
+                print('Skip')
+                continue
 
-                # Hash and check if data already stored
-                uukey, file_size = uukey_and_size(full_path)
-                store_data = False
-                if uukey not in new_tree.hashes:
-                    store_data = True
+            if os.path.islink(full_path):
+                # TODO
+                print('NotImpl')
+                continue
 
-                # Update tree and archive
-                new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
-                if store_data:
-                    new_tree.hashes[uukey] = "archive-name"
-                    if cp.getboolean('options', 'dont-archive'):
-                        print('H {}'.format(uukey[:32]))
-                    else:
-                        print('A {}'.format(uukey[:32]))
-                        if not dry_run:
-                            ar.add_file(full_path, uukey, file_size)
-                else:
-                    print('I')
+            # Hash and check if data already stored
+            uukey, file_size = uukey_and_size(full_path)
+            store_data = False
+            if uukey not in new_tree.uukey_to_arnum:
+                store_data = True
+
+            # Update tree and archive
+            new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
+            if store_data:
+                print('{}'.format(uukey[:32]))
+                if not cp.getboolean('options', 'tree-only') and not dry_run: 
+                    ar.add_file(full_path, uukey, file_size)
+                new_tree.uukey_to_arnum[uukey] = ar.curr_num
+            else:
+                print('-')
 
     # Update archive IDs
+    ar.finish_archive()
     new_tree.num_to_id = dict(new_tree.num_to_id, **ar.num_to_id)
+    new_tree.lastar = ar.curr_num
 
     # Store the new tree
     return new_tree

@@ -15,14 +15,15 @@ def uukey_and_size(filename):
     csum, size = libpf.hash_and_size(filename)
     return (csum + "{0:016x}".format(size), size)
 
-def shorten(filename, maxlen=58):
+def formatpath(filename, maxlen=48):
     if len(filename) > maxlen:
         hm = maxlen // 2
         left = filename[:hm-3]
         right = filename[-hm:]
         return left + "..." + right
     else:
-        return filename
+        rest = maxlen - len(filename)
+        return filename + (" "*rest)
 
 
 from permafreeze import tree, archiver, storage
@@ -118,7 +119,7 @@ def set_default_options(cp):
     opts = {'dry-run': 'False',
             'ignore-dotfiles': 'False',
             'ignore-config': 'True',
-            'dont-archive': 'False', # DANGEROUS: might be buggy
+            'tree-only': 'False', # DANGEROUS: might be buggy
 
             's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
             'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),
@@ -147,13 +148,17 @@ def main():
 
     cp = configparser.SafeConfigParser()
     cp.read(args.config)
-    set_default_options(cp)
 
     # Do some sanity checks
+    if len(cp.get('options', 'site-name')) == 0:
+        print("No site-name set (edit your config file!)")
+        sys.exit(1)
     if len(cp.options('targets')) == 0:
         print("No targets set (edit your config file!)")
         sys.exit(1)
 
+
+    set_default_options(cp)
     if args.dry_run:
         cp.set('options', 'dry-run', 'True')
     if args.hash_only:
