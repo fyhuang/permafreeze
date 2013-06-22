@@ -9,6 +9,9 @@ import argparse
 from datetime import datetime
 import ConfigParser as configparser
 
+# For DefaultHost
+import boto.s3.connection
+
 import libpf
 
 def uukey_and_size(filename):
@@ -24,6 +27,17 @@ def formatpath(filename, maxlen=48):
     else:
         rest = maxlen - len(filename)
         return filename + (" "*rest)
+
+def print_progress(ratio, width=50):
+    sys.stdout.write('[')
+    for i in range(width):
+        cratio = i / width
+        if cratio <= ratio:
+            sys.stdout.write('#')
+        else:
+            sys.stdout.write(' ')
+    sys.stdout.write("] {}%\r".format(ratio * 100))
+    sys.stdout.flush()
 
 
 from permafreeze import tree, archiver, storage
@@ -110,6 +124,7 @@ def process_all(cp, func, extra):
 
 DEFAULT_PF_CONFIG_DIR = os.path.expanduser('~/.config/permafreeze/')
 DEFAULT_PF_CONFIG_FILE = os.path.join(DEFAULT_PF_CONFIG_DIR, "config.ini")
+DEFAULT_FILESIZE_LIMIT = 32 * 1024 * 1024 # 32 MB
 
 def set_default_options(cp):
     def setq(s, o, v):
@@ -120,6 +135,11 @@ def set_default_options(cp):
             'ignore-dotfiles': 'False',
             'ignore-config': 'True',
             'tree-only': 'False', # DANGEROUS: might be buggy
+            'filesize-limit': str(DEFAULT_FILESIZE_LIMIT),
+
+            's3-host': boto.s3.connection.S3Connection.DefaultHost,
+            's3-port': '443',
+            's3-create-bucket': 'False',
 
             's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
             'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),

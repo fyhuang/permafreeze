@@ -8,8 +8,48 @@ import errno
 
 from datetime import datetime
 from contextlib import closing
+from multiprocessing import Queue, Process
+import Queue as queue
 
-from permafreeze import uukey_and_size, formatpath, tree, archiver
+from permafreeze import uukey_and_size, formatpath, print_progress
+from permafreeze import tree, archiver
+
+class FileUploader(object):
+    def __init__(self, cp, st):
+        self.to_store = Queue()
+        self.done = Queue()
+        self.progress = Queue()
+        self.num_requested = 0
+
+        self.cp = cp
+        self.st = st
+
+    @staticmethod
+    def _run(self):
+        num_processed = 0
+        while True:
+            nextitem = self.to_store.get()
+            if isinstance(nextitem, unicode) and nextitem == 'Done':
+                break
+
+            full_path, uukey = nextitem
+            aid = self.st.save_archive(self.cp, full_path)
+
+            self.done.put((uukey, aid))
+            num_processed += 1
+            self.progress.put(num_processed)
+
+    def start(self):
+        self.proc = Process(target=FileUploader._run, args=(self,))
+        self.proc.start()
+
+    def join(self):
+        self.proc.join()
+
+    def store(self, full_path, uukey):
+        self.to_store.put((full_path, uukey))
+        self.num_requested += 1
+
 
 def should_skip(cp, target_path, full_path, old_tree):
     if cp.getboolean('options', 'ignore-dotfiles'):
@@ -30,6 +70,10 @@ def should_skip(cp, target_path, full_path, old_tree):
     mtime_dt = datetime.utcfromtimestamp(sb.st_mtime)
     try:
         old_entry = old_tree.files[target_path]
+        if old_entry.last_hashed is None:
+            # Never been hashed
+            return False
+
         # Make sure the data is stored
         if old_entry.uukey in old_tree.hashes:
             if old_entry.last_hashed >= mtime_dt:
@@ -46,8 +90,22 @@ def do_freeze(cp, old_tree, root_path, ar, extra):
         return None
 
     dry_run = cp.getboolean('options', 'dry-run')
-
     new_tree = old_tree.copy()
+    small_uukeys = {}
+    uploader = FileUploader(cp, ar.extstorage)
+    uploader.start()
+
+    def store_file_small(full_path, uukey, target_path):
+        if not dry_run: 
+            ar.add_file(full_path, uukey, file_size)
+        new_tree.uukey_to_storage[uukey] = tree.STORAGE_PLACEHOLDER_MULTI
+        small_uukeys[uukey] = ar.curr_num
+
+    def store_file_large(full_path, uukey, target_path):
+        if not dry_run:
+            # Uploads to Glacier in another thread
+            uploader.store(full_path, uukey)
+        new_tree.uukey_to_storage[uukey] = tree.STORAGE_PLACEHOLDER
 
     for (root, dirs, files) in os.walk(root_path):
         prefix = root[len(root_path):]
@@ -71,24 +129,55 @@ def do_freeze(cp, old_tree, root_path, ar, extra):
 
             # Hash and check if data already stored
             uukey, file_size = uukey_and_size(full_path)
-            store_data = False
-            if uukey not in new_tree.uukey_to_arnum:
-                store_data = True
-
-            # Update tree and archive
-            new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
-            if store_data:
+            if cp.getboolean('options', 'tree-only'):
+                new_tree.files[target_path] = tree.TreeEntry(uukey, None)
                 print('{}'.format(uukey[:32]))
-                if not cp.getboolean('options', 'tree-only') and not dry_run: 
-                    ar.add_file(full_path, uukey, file_size)
-                new_tree.uukey_to_arnum[uukey] = ar.curr_num
+                continue
+
+
+            new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
+            if not new_tree.has_uukey(uukey):
+                if file_size <= cp.getint('options', 'filesize-limit'):
+                    store_file_small(full_path, uukey, target_path)
+                else:
+                    store_file_large(full_path, uukey, target_path)
+                print('{}'.format(uukey[:32]))
             else:
                 print('-')
 
+
     # Update archive IDs
     ar.finish_archive()
-    new_tree.num_to_id = dict(new_tree.num_to_id, **ar.num_to_id)
+    uploader.to_store.put('Done')
     new_tree.lastar = ar.curr_num
+
+    for (uukey, arnum) in small_uukeys.items():
+        if new_tree.uukey_to_storage[uukey] != tree.STORAGE_PLACEHOLDER_MULTI:
+            print("ERROR: uukey {} already has storage".format(uukey))
+            continue
+
+        new_tree.uukey_to_storage[uukey] = tree.UukeyStorage(True, ar.num_to_id[arnum])
+
+    # Progress indicator
+    print("\nWaiting for uploads to complete")
+    while True:
+        num_processed = uploader.progress.get()
+        print_progress(num_processed / uploader.num_requested)
+        if num_processed == uploader.num_requested:
+            break
+    print()
+
+    uploader.join()
+
+    try:
+        for i in range(uploader.num_requested):
+            (uukey, archiveid) = uploader.done.get(False)
+            new_tree.uukey_to_storage[uukey] = tree.UukeyStorage(False, archiveid)
+    except queue.Empty:
+        print("ERROR: not enough processed files")
+
+    if not uploader.done.empty():
+        print("ERROR: some files unaccounted!")
 
     # Store the new tree
     return new_tree

@@ -1,45 +1,13 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import os
 import os.path
-import shutil
-import collections
-import tarfile
 from StringIO import StringIO
 from datetime import datetime
 
-from boto.s3.connection import S3Connection, Key
+from boto.s3.connection import S3Connection, Key, OrdinaryCallingFormat
 from boto.glacier import layer2, vault
 
 from permafreeze import tree
-
-RemoteStoredInfo = collections.namedtuple('RemoteStoredInfo',
-        ['tree_local_fname', 'last_tree'])
-
-FAKE_STORAGE_DIR = "tmp"
-
-class FakeStorage(object):
-    def get_stored_info(self, cp, target):
-        tree_local_fname = os.path.join(cp.get('options', 'config-dir'), 'tree-'+target)
-        return RemoteStoredInfo(tree_local_fname, tree.Tree())
-
-    def save_tree(self, cp, target, new_tree):
-        pass
-
-    def save_archive(self, cp, filename):
-        if not os.path.isdir(FAKE_STORAGE_DIR):
-            os.mkdir(FAKE_STORAGE_DIR)
-        basename = os.path.basename(filename)
-        shutil.copyfile(filename, os.path.join(FAKE_STORAGE_DIR, basename))
-        return basename
-
-    def load_archive(self, cp, ar_name):
-        ar_obj = tarfile.open(
-                os.path.join(FAKE_STORAGE_DIR, ar_name),
-                mode='r'
-                )
-        return ar_obj
-
 
 class AmazonStorage(object):
     def __init__(self):
@@ -51,17 +19,34 @@ class AmazonStorage(object):
 
     def connect(self, cp):
         if not self.connected:
-            self.s3_conn = S3Connection(cp.get('auth', 'accessKeyId'),
-                            cp.get('auth', 'secretAccessKey'))
-            self.s3_bucket = s3_conn.get_bucket(cp.get('options', 's3-bucket-name'))
+            self.s3_conn = S3Connection(
+                    cp.get('auth', 'accessKeyId'),
+                    cp.get('auth', 'secretAccessKey'),
+                    port=int(cp.get('options', 's3-port')),
+                    host=cp.get('options', 's3-host'),
+                    is_secure=False,
+                    calling_format=OrdinaryCallingFormat(),
+                    )
 
+            s3bn = cp.get('options', 's3-bucket-name')
+            self.s3_bucket = self.s3_conn.lookup(s3bn)
+            if self.s3_bucket is None:
+                if cp.getboolean('options', 's3-create-bucket'):
+                    self.s3_conn.create_bucket(s3bn)
+                    self.s3_bucket = self.s3_conn.get_bucket(s3bn)
+                else:
+                    raise KeyError() # TODO
+
+            '''
             self.gl_conn = layer2.Layer2(
                     aws_access_key_id=cp.get('auth', 'accessKeyId'),
                     aws_secret_access_key=cp.get('auth', 'secretAccessKey')
                     )
-            self.gl_vault = gl_conn.create_vault(cp.get('options', 'glacier-vault-name'))
+            self.gl_vault = self.gl_conn.create_vault(cp.get('options', 'glacier-vault-name')) # Idempotent
+            '''
 
             self.connected = True
+            print("Connected to Amazon S3")
             
 
     def get_stored_info(self, cp, target):
@@ -76,13 +61,11 @@ class AmazonStorage(object):
             with open(tree_local_fname, 'rb') as f:
                 old_tree = tree.load_tree(f.read())
         else:
-            old_tree = tree.Tree()
-
-        # If no local tree, load from S3
-        print("Loading trees from S3")
-        all_s3_trees = self.s3_bucket.list(s3_pf_prefix + '/trees/')
-        for t in all_s3_trees:
-            print(t)
+            # If no local tree, load from S3
+            print("Loading trees from S3")
+            all_s3_trees = self.s3_bucket.list(s3_pf_prefix + '/trees/')
+            for t in all_s3_trees:
+                print(t)
 
 
         return RemoteStoredInfo(tree_local_fname, old_tree)
