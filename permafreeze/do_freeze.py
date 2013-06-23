@@ -83,6 +83,25 @@ def should_skip(cp, target_path, full_path, old_tree):
 
     return False
 
+def iter_files(cp, target_root_path, old_tree):
+    for (root, dirs, files) in os.walk(target_root_path):
+        prefix = root[len(target_root_path):]
+        if len(prefix) == 0:
+            prefix = '/'
+
+        for fn in files:
+            full_path = os.path.join(root, fn)
+            target_path = os.path.join(prefix, fn)
+
+            print(formatpath(target_path), end="")
+            sys.stdout.flush()
+            
+            if should_skip(cp, target_path, full_path, old_tree):
+                print('Skip')
+                continue
+
+            yield (full_path, target_path)
+
 
 def do_freeze(cp, old_tree, root_path, ar, extra):
     if not os.path.isdir(root_path):
@@ -107,43 +126,29 @@ def do_freeze(cp, old_tree, root_path, ar, extra):
             uploader.store(full_path, uukey)
         new_tree.uukey_to_storage[uukey] = tree.STORAGE_PLACEHOLDER
 
-    for (root, dirs, files) in os.walk(root_path):
-        prefix = root[len(root_path):]
-        if len(prefix) == 0:
-            prefix = '/'
+    for (full_path, target_path) in iter_files(cp, root_path, old_tree):
+        if os.path.islink(full_path):
+            # TODO
+            print('NotImpl')
+            continue
 
-        for fn in files:
-            full_path = os.path.join(root, fn)
-            target_path = os.path.join(prefix, fn)
-            print(formatpath(target_path), end="")
-            sys.stdout.flush()
-            
-            if should_skip(cp, target_path, full_path, old_tree):
-                print('Skip')
-                continue
-
-            if os.path.islink(full_path):
-                # TODO
-                print('NotImpl')
-                continue
-
-            # Hash and check if data already stored
-            uukey, file_size = uukey_and_size(full_path)
-            if cp.getboolean('options', 'tree-only'):
-                new_tree.files[target_path] = tree.TreeEntry(uukey, None)
-                print('{}'.format(uukey[:32]))
-                continue
+        # Hash and check if data already stored
+        uukey, file_size = uukey_and_size(full_path)
+        if cp.getboolean('options', 'tree-only'):
+            new_tree.files[target_path] = tree.TreeEntry(uukey, None)
+            print('{}'.format(uukey[:32]))
+            continue
 
 
-            new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
-            if not new_tree.has_uukey(uukey):
-                if file_size <= cp.getint('options', 'filesize-limit'):
-                    store_file_small(full_path, uukey, target_path)
-                else:
-                    store_file_large(full_path, uukey, target_path)
-                print('{}'.format(uukey[:32]))
+        new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
+        if not new_tree.has_uukey(uukey):
+            if file_size <= cp.getint('options', 'filesize-limit'):
+                store_file_small(full_path, uukey, target_path)
             else:
-                print('-')
+                store_file_large(full_path, uukey, target_path)
+            print('{}'.format(uukey[:32]))
+        else:
+            print('-')
 
 
     # Update archive IDs
