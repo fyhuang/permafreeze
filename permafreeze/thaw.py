@@ -2,6 +2,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 
 import os
 import os.path
+import errno
 import sys
 import shutil
 import tarfile
@@ -21,6 +22,7 @@ def uukeys_and_archives(tree):
 def do_thaw(cp, tree, dest_path, st):
     """st: the storage object to pull archives from"""
 
+    # Files
     for (relpath, entry) in tree.files.items():
         print(formatpath(relpath), end="")
         sys.stdout.flush()
@@ -47,3 +49,25 @@ def do_thaw(cp, tree, dest_path, st):
             else:
                 shutil.copy(archive_cf.fullpath(), fullpath)
                 print("OK")
+
+    # Symlinks
+    for (spath, starget) in tree.symlinks.items():
+        print(formatpath(spath), end="")
+        sys.stdout.flush()
+
+        fullpath = os.path.join(dest_path, spath.lstrip('/'))
+        dirname = os.path.dirname(fullpath)
+        # Sanity check
+        assert dest_path.rstrip('/') in dirname
+
+        mkdir_p(dirname)
+
+        # TODO: windows?
+        try:
+            os.symlink(starget, fullpath)
+        except OSError as e:
+            if e.errno == errno.EEXIST and os.path.islink(fullpath):
+                pass
+            else: raise
+
+        print("OK")

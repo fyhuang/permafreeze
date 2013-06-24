@@ -126,10 +126,20 @@ def do_freeze(cp, old_tree, root_path, ar, extra):
             uploader.store(full_path, uukey)
         new_tree.uukey_to_storage[uukey] = tree.STORAGE_PLACEHOLDER
 
+    def store_symlink(full_path, target_path):
+        symlink_target = os.path.realpath(full_path)
+        if symlink_target.startswith(root_path):
+            symlink_target = os.path.relpath(symlink_target, os.path.dirname(full_path))
+
+        new_tree.symlinks[target_path] = symlink_target
+
+
+
     for (full_path, target_path) in iter_files(cp, root_path, old_tree):
+        # Symlinks
         if os.path.islink(full_path):
-            # TODO
-            print('NotImpl')
+            store_symlink(full_path, target_path)
+            print('OK')
             continue
 
         # Hash and check if data already stored
@@ -148,7 +158,7 @@ def do_freeze(cp, old_tree, root_path, ar, extra):
                 store_file_large(full_path, uukey, target_path)
             print('{}'.format(uukey[:32]))
         else:
-            print('-')
+            print('OK')
 
 
     # Update archive IDs

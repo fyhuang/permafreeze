@@ -20,7 +20,7 @@ class Tree(object):
     def __init__(self, **kwargs):
         # Map from file path to TreeEntry
         self.files = {}
-        self.dirs = []
+        self.dirs = [] # TODO
         # Map from file path to symlink target
         self.symlinks = {}
         # Map from uukey to storage location (UukeyStorage)
@@ -70,3 +70,5 @@ def print_tree(tree):
         print()
 
     print(tree.uukey_to_storage)
+    print(tree.dirs)
+    print(tree.symlinks)
