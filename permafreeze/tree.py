@@ -70,4 +70,3 @@ def print_tree(tree):
         print()
 
     print(tree.uukey_to_storage)
-    print(tree.num_to_id)

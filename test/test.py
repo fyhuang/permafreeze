@@ -4,7 +4,7 @@ import os.path
 import ConfigParser as configparser
 from contextlib import closing
 
-from permafreeze import set_default_options, archiver, tree, do_freeze, storage
+from permafreeze import load_config, set_default_options, archiver, tree, do_freeze, storage
 from permafreeze import thaw
 from permafreeze.storage import AmazonStorage
 
@@ -35,7 +35,7 @@ def test_freeze():
     cp = get_test_config()
 
     old_tree = tree.Tree()
-    st = storage.FakeStorage()
+    st = storage.FakeStorage(cp)
     ar = archiver.Archiver(cp, 0, 'testfiles', st)
     with closing(ar):
         new_tree = do_freeze(cp, old_tree, TESTFILES_PATH, ar, {'target-name': 'testfiles'})
@@ -46,7 +46,7 @@ def test_thaw():
     cp = get_test_config()
 
     old_tree = tree.Tree()
-    st = storage.FakeStorage()
+    st = storage.FakeStorage(cp)
     ar = archiver.Archiver(cp, 0, 'testfiles', st)
     with closing(ar):
         new_tree = do_freeze(cp, old_tree, TESTFILES_PATH, ar, {'target-name': 'testfiles'})
@@ -56,10 +56,10 @@ def test_thaw():
     thaw.do_thaw(cp, new_tree, TESTFILES_THAW_PATH, st)
 
 def test_amazon_storage():
-    cp = get_test_config()
-    st = AmazonStorage()
-    st.connect(cp)
-    st.s3_conn.create_bucket("test")
+    cp = load_config('config.ini')
+    set_default_options(cp)
+
+    st = AmazonStorage(cp)
 
     t = tree.Tree()
     st.save_tree(cp, 'testfiles', t)

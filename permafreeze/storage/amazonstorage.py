@@ -8,27 +8,31 @@ from boto.s3.connection import S3Connection, Key, OrdinaryCallingFormat
 from boto.glacier import layer2, vault
 
 from permafreeze import tree
+from permafreeze.storage import FileCache
 
 class AmazonStorage(object):
-    def __init__(self):
+    def __init__(self, cp):
+        self.cp = cp
+        self.cache = FileCache(cp)
         self.connected = False
+
         self.s3_conn = None
         self.s3_bucket = None
         self.gl_conn = None
         self.gl_vault = None
 
-    def connect(self, cp):
+    def connect(self):
         if not self.connected:
             self.s3_conn = S3Connection(
-                    cp.get('auth', 'accessKeyId'),
-                    cp.get('auth', 'secretAccessKey'),
-                    port=int(cp.get('options', 's3-port')),
-                    host=cp.get('options', 's3-host'),
+                    self.cp.get('auth', 'accessKeyId'),
+                    self.cp.get('auth', 'secretAccessKey'),
+                    port=int(self.cp.get('options', 's3-port')),
+                    host=self.cp.get('options', 's3-host'),
                     is_secure=False,
                     calling_format=OrdinaryCallingFormat(),
                     )
 
-            s3bn = cp.get('options', 's3-bucket-name')
+            s3bn = self.cp.get('options', 's3-bucket-name')
             self.s3_bucket = self.s3_conn.lookup(s3bn)
             if self.s3_bucket is None:
                 if cp.getboolean('options', 's3-create-bucket'):
@@ -49,10 +53,10 @@ class AmazonStorage(object):
             print("Connected to Amazon S3")
             
 
-    def get_stored_info(self, cp, target):
-        self.connect(cp)
+    def get_stored_info(self, target):
+        self.connect()
 
-        s3_pf_prefix = cp.get('options', 's3-pf-prefix')
+        s3_pf_prefix = self.cp.get('options', 's3-pf-prefix')
 
 
         # Try local tree
@@ -70,20 +74,20 @@ class AmazonStorage(object):
 
         return RemoteStoredInfo(tree_local_fname, old_tree)
 
-    def save_tree(self, cp, target, new_tree):
-        self.connect(cp)
+    def save_tree(self, target, new_tree):
+        self.connect()
 
         now_dt = datetime.utcnow()
         sio = StringIO()
         tree.save_tree(new_tree, sio)
 
-        tree_local_fname = os.path.join(cp.get('options', 'config-dir'), 'tree-'+target)
+        tree_local_fname = os.path.join(self.cp.get('options', 'config-dir'), 'tree-'+target)
         with open(tree_local_fname, 'wb') as f:
             f.write(sio.getvalue())
 
         # Save to S3
         print("Saving tree to S3")
-        s3_pf_prefix = cp.get('options', 's3-pf-prefix')
+        s3_pf_prefix = self.cp.get('options', 's3-pf-prefix')
 
         k = Key(self.s3_bucket)
         k.key = '{}/trees/{}.{}'.format(
@@ -93,11 +97,11 @@ class AmazonStorage(object):
                 )
         k.set_contents_from_string(sio.getvalue())
 
-    def save_archive(self, cp, filename):
+    def save_archive(self, filename):
         # Save to Glacier
-        self.connect(cp)
+        self.connect()
 
-        gl_pf_prefix = cp.get('options', 'glacier-pf-prefix')
+        gl_pf_prefix = self.cp.get('options', 'glacier-pf-prefix')
         basename = os.path.basename(filename)
 
         print("Saving archive {} to Glacier".format(basename))

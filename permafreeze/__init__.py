@@ -4,7 +4,10 @@ import os
 import os.path
 import sys
 import time
+import errno
+import getpass
 import argparse
+import tempfile
 
 from datetime import datetime
 import ConfigParser as configparser
@@ -17,6 +20,16 @@ import libpf
 def uukey_and_size(filename):
     csum, size = libpf.hash_and_size(filename)
     return (csum + "{0:016x}".format(size), size)
+
+
+# From <http://stackoverflow.com/questions/600268/mkdir-p-functionality-in-python>
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else: raise
 
 def formatpath(filename, maxlen=48):
     if len(filename) > maxlen:
@@ -124,6 +137,7 @@ def process_all(cp, func, extra):
 
 DEFAULT_PF_CONFIG_DIR = os.path.expanduser('~/.config/permafreeze/')
 DEFAULT_PF_CONFIG_FILE = os.path.join(DEFAULT_PF_CONFIG_DIR, "config.ini")
+DEFAULT_PF_CACHE_DIR = '{}/pf-cache/{}/'.format(tempfile.gettempdir(), getpass.getuser())
 DEFAULT_FILESIZE_LIMIT = 32 * 1024 * 1024 # 32 MB
 
 def set_default_options(cp):
@@ -136,6 +150,7 @@ def set_default_options(cp):
             'ignore-config': 'True',
             'tree-only': 'False', # DANGEROUS: might be buggy
             'filesize-limit': str(DEFAULT_FILESIZE_LIMIT),
+            'cache-dir': DEFAULT_PF_CACHE_DIR,
 
             's3-host': boto.s3.connection.S3Connection.DefaultHost,
             's3-port': '443',
@@ -154,20 +169,26 @@ def set_default_options(cp):
         os.mkdir(cdir)
         os.mkdir(os.path.join(cdir, 'tmp'))
 
+def load_config(config_filename):
+    if not os.path.isfile(config_filename):
+        if config_filename == DEFAULT_PF_CONFIG_FILE:
+            # TODO: copy over the default config file
+            print("TODO: copy over the default config file")
+            sys.exit(1)
+        else:
+            print("Config file {} doesn't exist".format(config_filename))
+            sys.exit(1)
+
+    cp = configparser.SafeConfigParser()
+    cp.read(config_filename)
+    return cp
+
+
 
 def main():
     args = parse_args()
 
-    if not os.path.isfile(args.config):
-        if args.config == DEFAULT_PF_CONFIG_FILE:
-            # TODO: copy over the default config file
-            sys.exit(1)
-        else:
-            print("Config file {} doesn't exist".format(args.config))
-            sys.exit(1)
-
-    cp = configparser.SafeConfigParser()
-    cp.read(args.config)
+    cp = load_config(args.config)
 
     # Do some sanity checks
     if len(cp.get('options', 'site-name')) == 0:

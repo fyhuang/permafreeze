@@ -33,7 +33,7 @@ class FileUploader(object):
                 break
 
             full_path, uukey = nextitem
-            aid = self.st.save_archive(self.cp, full_path)
+            aid = self.st.save_archive(full_path)
 
             self.done.put((uukey, aid))
             num_processed += 1

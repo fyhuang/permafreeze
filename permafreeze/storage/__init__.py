@@ -5,5 +5,6 @@ import collections
 RemoteStoredInfo = collections.namedtuple('RemoteStoredInfo',
         ['tree_local_fname', 'last_tree'])
 
+from permafreeze.storage.filecache import FileCache
 from permafreeze.storage.fakestorage import FakeStorage
 from permafreeze.storage.amazonstorage import AmazonStorage

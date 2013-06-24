@@ -48,7 +48,7 @@ class Archiver(object):
         if self.curr_archive is not None:
             self.curr_archive.close()
 
-            aid = self.extstorage.save_archive(self.cp, self.curr_archive_path())
+            aid = self.extstorage.save_archive(self.curr_archive_path())
             self.num_to_id[self.curr_num] = aid
             os.unlink(self.curr_archive_path())
             self.curr_archive = None
