@@ -1,5 +1,6 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
+import re
 import os.path
 from StringIO import StringIO
 from datetime import datetime
@@ -8,7 +9,9 @@ from boto.s3.connection import S3Connection, Key, OrdinaryCallingFormat
 from boto.glacier import layer2, vault
 
 from permafreeze import tree
-from permafreeze.storage import FileCache
+from permafreeze.storage import RemoteStoredInfo, FileCache
+
+TREENAME_REGEX = re.compile(r"(?P<targetname>.+)\.(?P<dt>\d{8}T\d{4})")
 
 class AmazonStorage(object):
     def __init__(self, cp):
@@ -35,7 +38,8 @@ class AmazonStorage(object):
             s3bn = self.cp.get('options', 's3-bucket-name')
             self.s3_bucket = self.s3_conn.lookup(s3bn)
             if self.s3_bucket is None:
-                if cp.getboolean('options', 's3-create-bucket'):
+                if self.cp.getboolean('options', 's3-create-bucket'):
+                    print("Creating S3 bucket")
                     self.s3_conn.create_bucket(s3bn)
                     self.s3_bucket = self.s3_conn.get_bucket(s3bn)
                 else:
@@ -53,23 +57,37 @@ class AmazonStorage(object):
             print("Connected to Amazon S3")
             
 
-    def get_stored_info(self, target):
+    def newest_stored_tree(self, target):
         self.connect()
 
         s3_pf_prefix = self.cp.get('options', 's3-pf-prefix')
 
+        all_s3_trees = self.s3_bucket.list(s3_pf_prefix + '/trees/')
+        s3_trees_with_dt = []
+        for t in all_s3_trees:
+            basename = os.path.basename(t.key)
+            m = TREENAME_REGEX.match(basename)
+            if m is not None:
+                dt = datetime.strptime(m.group('dt'), "%Y%m%dT%H%M")
+                s3_trees_with_dt.append((dt, t))
+
+        s3_trees_with_dt.sort(key=lambda x: x[0], reverse=True)
+        return s3_trees_with_dt[0]
+
+    def get_stored_info(self, target):
+        self.connect()
 
         # Try local tree
-        tree_local_fname = os.path.join(cp.get('options', 'config-dir'), 'tree-'+target)
+        tree_local_fname = os.path.join(self.cp.get('options', 'config-dir'), 'tree-'+target)
         if os.path.isfile(tree_local_fname):
             with open(tree_local_fname, 'rb') as f:
                 old_tree = tree.load_tree(f.read())
         else:
             # If no local tree, load from S3
             print("Loading trees from S3")
-            all_s3_trees = self.s3_bucket.list(s3_pf_prefix + '/trees/')
-            for t in all_s3_trees:
-                print(t)
+            newest_tree = self.newest_s3_tree_key(target)
+            tree_data = newest_tree.get_contents_as_string()
+            old_tree = tree.load_tree(tree_data)
 
 
         return RemoteStoredInfo(tree_local_fname, old_tree)

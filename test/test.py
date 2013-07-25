@@ -31,11 +31,16 @@ def get_test_config():
     set_default_options(cp)
     return cp
 
-def test_freeze():
-    cp = get_test_config()
+def test_freeze(configname):
+    if configname is None:
+        cp = get_test_config()
+        st = storage.FakeStorage(cp)
+    else:
+        cp = load_config(configname)
+        set_default_options(cp)
+        st = storage.AmazonStorage(cp)
 
     old_tree = tree.Tree()
-    st = storage.FakeStorage(cp)
     ar = archiver.Archiver(cp, 0, 'testfiles', st)
     with closing(ar):
         new_tree = do_freeze(cp, old_tree, TESTFILES_PATH, ar, {'target-name': 'testfiles'})
@@ -50,19 +55,26 @@ def test_thaw():
     ar = archiver.Archiver(cp, 0, 'testfiles', st)
     with closing(ar):
         new_tree = do_freeze(cp, old_tree, TESTFILES_PATH, ar, {'target-name': 'testfiles'})
+        storage.store_local_tree(cp, 'testfiles', new_tree)
 
     # Thaw the new tree
     print("\nThawing")
-    thaw.do_thaw(cp, new_tree, TESTFILES_THAW_PATH, st)
+    loaded_tree = storage.load_local_tree(cp, 'testfiles')
+    thaw.do_thaw(cp, loaded_tree, TESTFILES_THAW_PATH, st)
 
 def test_amazon_storage():
-    cp = load_config('config.ini')
+    cp = load_config('../config.ini')
     set_default_options(cp)
 
     st = AmazonStorage(cp)
 
     t = tree.Tree()
-    st.save_tree(cp, 'testfiles', t)
+    st.save_tree('testfiles', t)
 
-    si = st.get_stored_info(cp, 'testfiles')
+    os.unlink(os.path.join(cp.get('options', 'config-dir'), 'tree-testfiles'))
+
+    si = st.get_stored_info('testfiles')
     print(si)
+
+if __name__ == "__main__":
+    test_thaw()
