@@ -126,6 +126,11 @@ def do_freeze(cp, old_tree, root_path, ar, extra):
             uploader.store(full_path, uukey)
         new_tree.uukey_to_storage[uukey] = tree.STORAGE_PLACEHOLDER
 
+    def store_archive(ar_uuid, arpath):
+        if not dry_run:
+            uploader.store(arpath, ar_uuid)
+        new_tree.uukey_to_storage[ar_uuid] = tree.STORAGE_PLACEHOLDER
+
     def store_symlink(full_path, target_path):
         symlink_target = os.path.realpath(full_path)
         if symlink_target.startswith(root_path):

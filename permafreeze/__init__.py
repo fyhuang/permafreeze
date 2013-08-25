@@ -17,6 +17,7 @@ import boto.s3.connection
 
 import libpf
 
+
 def uukey_and_size(filename):
     csum, size = libpf.hash_and_size(filename)
     return (csum + "{0:016x}".format(size), size)
@@ -57,70 +58,13 @@ from permafreeze import tree, archiver, storage
 from permafreeze.do_freeze import do_freeze
 
 
-def do_check(cp, old_tree, root_path, extra):
-    total_files = 0
-    skipped_files = 0
-    errors = []
-
-    if len(old_tree.files) == 0 and len(old_tree.hashes) == 0:
-        errors.append("No stored tree for {}".format(root_path))
-    if not os.path.isdir(root_path):
-        errors.append("{} doesn't exist or is not a directory".format(root_path))
-
-    for (root, dirs, files) in os.walk(root_path):
-        prefix = root[len(root_path):]
-        for fn in files:
-            if cp.getboolean('options', 'ignore-dotfiles') and \
-                    fn[0] == '.':
-                continue
-
-            full_path = os.path.join(root, fn)
-            target_path = os.path.join(prefix, fn)
-            if os.path.islink(full_path):
-                # TODO
-                continue
-
-            total_files += 1
-            if total_files % 100 == 0:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-            mtime_dt = datetime.utcfromtimestamp(os.path.getmtime(full_path))
-            check = True
-            try:
-                old_entry = old_tree.files[target_path]
-                if old_entry.last_hashed < mtime_dt:
-                    check = False
-            except KeyError:
-                check = False
-
-            if not check:
-                skipped_files += 1
-                continue
-
-            uukey, file_size = uukey_and_size(full_path)
-            if uukey != old_entry.uukey:
-                print("WARNING: hash mismatch! {}".format(target_path))
-                errors.append(target_path)
-
-    print()
-    print("Finished consistency check:")
-    print("{} files on disk ({} skipped), {} in tree".format(total_files, skipped_files, len(old_tree.files)))
-    print()
-    if len(errors) > 0:
-        print("{} errors:".format(len(errors)))
-        for e in errors:
-            print(e)
-    else:
-        print("No errors.")
-
-
-def process_all(cp, func, extra):
+def process_all(cp, func, st, extra):
     targets = cp.options('targets')
     for t in targets:
         root_path = unicode(cp.get('targets', t))
 
         # Load old tree
-        rsi = storage.get_stored_info(cp, t)
+        rsi = storage.newest_tree(cp, st, t)
         old_tree = rsi.last_tree
 
         # Do action and save tree
@@ -131,7 +75,7 @@ def process_all(cp, func, extra):
 
         if new_tree is not None and \
                 not cp.getboolean('options', 'dry-run'):
-            storage.save_tree(cp, t, new_tree)
+            st.save_tree(cp, t, new_tree)
 
 
 
@@ -140,34 +84,46 @@ DEFAULT_PF_CONFIG_FILE = os.path.join(DEFAULT_PF_CONFIG_DIR, "config.ini")
 DEFAULT_PF_CACHE_DIR = '{}/pf-cache/{}/'.format(tempfile.gettempdir(), getpass.getuser())
 DEFAULT_FILESIZE_LIMIT = 32 * 1024 * 1024 # 32 MB
 
-def set_default_options(cp):
-    def setq(s, o, v):
-        if not cp.has_option(s, o):
-            cp.set(s, o, v)
+class PfConfig(configparser.SafeConfigParser):
+    def set_default_options(self):
+        # Set default options
+        def setq(s, o, v):
+            if not self.has_option(s, o):
+                self.set(s, o, v)
 
-    opts = {'dry-run': 'False',
-            'ignore-dotfiles': 'False',
-            'ignore-config': 'True',
-            'tree-only': 'False', # DANGEROUS: might be buggy
-            'filesize-limit': str(DEFAULT_FILESIZE_LIMIT),
-            'cache-dir': DEFAULT_PF_CACHE_DIR,
+        opts = {'dry-run': 'False',
+                'ignore-dotfiles': 'False',
+                'ignore-config': 'True',
+                'tree-only': 'False', # DANGEROUS: might be buggy
+                'filesize-limit': str(DEFAULT_FILESIZE_LIMIT),
+                'cache-dir': DEFAULT_PF_CACHE_DIR,
 
-            's3-host': boto.s3.connection.S3Connection.DefaultHost,
-            's3-port': '443',
-            's3-create-bucket': 'False',
+                's3-host': boto.s3.connection.S3Connection.DefaultHost,
+                's3-port': '443',
+                's3-create-bucket': 'False',
 
-            's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
-            'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),
-            }
+                's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
+                'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),
+                }
 
-    for (name, val) in opts.items():
-        setq('options', name, val)
+        for (name, val) in opts.items():
+            setq('options', name, val)
 
-    setq('options', 'config-dir', DEFAULT_PF_CONFIG_DIR)
-    if not os.path.isdir(cp.get('options', 'config-dir')):
-        cdir = cp.get('options', 'config-dir')
-        os.mkdir(cdir)
-        os.mkdir(os.path.join(cdir, 'tmp'))
+        setq('options', 'config-dir', DEFAULT_PF_CONFIG_DIR)
+        if not os.path.isdir(self.get('options', 'config-dir')):
+            cdir = self.get('options', 'config-dir')
+            os.mkdir(cdir)
+            os.mkdir(os.path.join(cdir, 'tmp'))
+
+    def set_defaults(self):
+        self.set_default_options()
+
+        # Setup default components
+        self.st = storage.AmazonStorage(self)
+
+    def cleanup(self):
+        # TODO: delete tmp dirs
+        pass
 
 def load_config(config_filename):
     if not os.path.isfile(config_filename):
@@ -179,7 +135,7 @@ def load_config(config_filename):
             print("Config file {} doesn't exist".format(config_filename))
             sys.exit(1)
 
-    cp = configparser.SafeConfigParser()
+    cp = PfConfig()
     cp.read(config_filename)
     return cp
 
@@ -198,17 +154,16 @@ def main():
         print("No targets set (edit your config file!)")
         sys.exit(1)
 
-
-    set_default_options(cp)
     if args.dry_run:
         cp.set('options', 'dry-run', 'True')
     if args.hash_only:
         cp.set('options', 'dont-archive', 'True')
 
+    cp.set_defaults()
+
     # Run the actual command
     if args.command == 'freeze':
         process_all(cp, do_freeze, {})
-
     elif args.command == 'check':
         process_all(cp, do_check, {})
     else:

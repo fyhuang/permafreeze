@@ -29,10 +29,9 @@ class Tree(object):
         self.symlinks = {}
         # Map from uukey to storage location (UukeyStorage)
         self.uukey_to_storage = {}
-        self.lastar = 0
         self.generated_dt = None
 
-        props_to_copy = ['files', 'dirs', 'symlinks', 'uukey_to_storage', 'lastar', 'generated_dt']
+        props_to_copy = ['files', 'dirs', 'symlinks', 'uukey_to_storage', 'generated_dt']
         for p in props_to_copy:
             if p in kwargs:
                 self.__dict__[p] = kwargs[p]
@@ -44,7 +43,6 @@ class Tree(object):
                 dirs = self.dirs[:],
                 symlinks = self.symlinks.copy(),
                 uukey_to_storage = self.uukey_to_storage.copy(),
-                lastar = self.lastar,
                 generated_dt = copy.copy(self.generated_dt)
                 )
 
@@ -73,7 +71,7 @@ def tree_from_str(data):
         raise RuntimeError("magic string not found")
 
     version_str = sio.read(4 + len(TREE_DT_FMT))
-    version, date_str = struct.unpack("!Is", version_str)[0]
+    version, date_str = struct.unpack("!I{}s".format(len(TREE_DT_FMT)), version_str)
     if version != TREE_VER_P1:
         raise RuntimeError("tree version not supported")
 
@@ -81,7 +79,7 @@ def tree_from_str(data):
 
 def save_tree(tree_to_save, fp):
     fp.write(b'PFTR')
-    fp.write(struct.pack(b'!Is',
+    fp.write(struct.pack(b'!I{}s'.format(len(TREE_DT_FMT)),
         TREE_VER_P1,
         tree_to_save.generated_dt.strftime(TREE_DT_FMT)))
     pickle.dump(tree_to_save, fp)

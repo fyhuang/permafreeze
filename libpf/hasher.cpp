@@ -65,8 +65,9 @@ libpf_hash_and_size(PyObject *self, PyObject *args) {
     blake512_final(&state, hash);
 
     // Convert hash to ASCII
-    char hash_asc[NUM_HASH_BYTES*2];
-    size_t off = 0;
+    char hash_asc[NUM_HASH_BYTES*2+2];
+    hash_asc[0] = 'F';
+    size_t off = 1;
     for (int i = 0; i < NUM_HASH_BYTES; i++) {
         sprintf(hash_asc+off, "%02x", hash[i]);
         off += 2;
