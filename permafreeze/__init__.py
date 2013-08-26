@@ -5,6 +5,7 @@ import os.path
 import sys
 import time
 import errno
+import shutil
 import getpass
 import argparse
 import tempfile
@@ -78,25 +79,28 @@ def process_all(cp, func, st, extra):
             st.save_tree(cp, t, new_tree)
 
 
-
 DEFAULT_PF_CONFIG_DIR = os.path.expanduser('~/.config/permafreeze/')
 DEFAULT_PF_CONFIG_FILE = os.path.join(DEFAULT_PF_CONFIG_DIR, "config.ini")
-DEFAULT_PF_CACHE_DIR = '{}/pf-cache/{}/'.format(tempfile.gettempdir(), getpass.getuser())
-DEFAULT_FILESIZE_LIMIT = 32 * 1024 * 1024 # 32 MB
+DEFAULT_FILESIZE_LIMIT = 16 * 1024 * 1024 # 16 MB
 
 class PfConfig(configparser.SafeConfigParser):
+    def getopt(self, name):
+        return self.get('options', name)
+
     def set_default_options(self):
         # Set default options
         def setq(s, o, v):
             if not self.has_option(s, o):
                 self.set(s, o, v)
 
+        TEMPDIR_PATH = '{}/{}'.format(tempfile.gettempdir(), getpass.getuser())
+
         opts = {'dry-run': 'False',
                 'ignore-dotfiles': 'False',
                 'ignore-config': 'True',
                 'tree-only': 'False', # DANGEROUS: might be buggy
                 'filesize-limit': str(DEFAULT_FILESIZE_LIMIT),
-                'cache-dir': DEFAULT_PF_CACHE_DIR,
+                'temp-dir': TEMPDIR_PATH,
 
                 's3-host': boto.s3.connection.S3Connection.DefaultHost,
                 's3-port': '443',
@@ -109,11 +113,13 @@ class PfConfig(configparser.SafeConfigParser):
         for (name, val) in opts.items():
             setq('options', name, val)
 
-        setq('options', 'config-dir', DEFAULT_PF_CONFIG_DIR)
-        if not os.path.isdir(self.get('options', 'config-dir')):
-            cdir = self.get('options', 'config-dir')
-            os.mkdir(cdir)
-            os.mkdir(os.path.join(cdir, 'tmp'))
+        # Temporary directories
+        self.default_tempdir = self.getopt('temp-dir') == TEMPDIR_PATH
+        if not self.has_option('options', 'cache-dir'):
+            self.set('options', 'cache-dir',
+                     os.path.join(self.getopt('temp-dir'), 'cache'))
+            if not os.path.isdir(self.getopt('cache-dir')):
+                os.mkdir(self.getopt('cache-dir'))
 
     def set_defaults(self):
         self.set_default_options()
@@ -121,9 +127,21 @@ class PfConfig(configparser.SafeConfigParser):
         # Setup default components
         self.st = storage.AmazonStorage(self)
 
+    def tempdir(self, name, create=True):
+        tmpdir_path = os.path.join(self.getopt('temp-dir'), name)
+        if create and not os.path.isdir(tmpdir_path):
+            mkdir_p(tmpdir_path)
+        return tmpdir_path
+
     def cleanup(self):
-        # TODO: delete tmp dirs
-        pass
+        if self.default_tempdir and os.path.isdir(self.getopt('temp-dir')):
+            shutil.rmtree(self.getopt('temp-dir'))
+
+    # Support for with statement
+    def __enter__(self):
+        return self
+    def __exit__(self):
+        self.cleanup()
 
 def load_config(config_filename):
     if not os.path.isfile(config_filename):
