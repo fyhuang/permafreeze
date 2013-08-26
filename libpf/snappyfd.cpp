@@ -25,6 +25,26 @@ const char *_snappy_magic = "sNaPpY";
 const float _max_comp_ratio = 0.98f;
 
 
+float _compress(libpf_SnappyFd *self) {
+    // Returns compression ratio (compressed size / raw size)
+    snappy::Compress((const char *)&self->td->buffer[0],
+            self->td->buffer.size(),
+            &self->td->out_buffer);
+
+    float ratio = (float)(self->td->out_buffer.size()) /
+        self->td->buffer.size();
+    return ratio;
+}
+
+bool _decompress(libpf_SnappyFd *self) {
+    // Returns length of uncompressed data
+    bool success = snappy::Uncompress((const char *)&self->td->buffer[0],
+            self->td->buffer.size(),
+            &self->td->out_buffer);
+
+    return success;
+}
+
 void _writeChunk(libpf_SnappyFd *self, chunkid_t chunkid, chunklen_t data_len, const uint8_t *data) {
     csum_t csum = 0;
     chunklen_t len = data_len;
@@ -86,40 +106,12 @@ chunkret_t _readChunk(libpf_SnappyFd *self) {
 
         // Decompress
         if (cid == 0x00) {
-            return _decompress(self);
-        }
-        else {
-            return len - sizeof(csum_t);
+            bool success = _decompress(self);
+            return success ? cid : -1;
         }
     }
-    else {
-        return len;
-    }
-}
 
-float _compress(libpf_SnappyFd *self) {
-    // Returns compression ratio (compressed size / raw size)
-    snappy::Compress((const char *)&self->td->buffer[0],
-            self->td->buffer.size(),
-            &self->td->out_buffer);
-
-    float ratio = (float)(self->td->out_buffer.size()) /
-        self->td->buffer.size();
-    return ratio;
-}
-
-chunkret_t _decompress(libpf_SnappyFd *self) {
-    // Returns length of uncompressed data
-    bool success = snappy::Uncompress((const char *)&self->td->buffer[0],
-            self->td->buffer.size(),
-            &self->td->out_buffer);
-
-    if (success) {
-        return self->td->out_buffer.size();
-    }
-    else {
-        return -1;
-    }
+    return cid;
 }
 
 void _close(libpf_SnappyFd *self) {

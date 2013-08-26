@@ -9,3 +9,8 @@ test_str = 'Hello, world! This is a test string for libpf and SnappyFd. Test tes
 sfd = libpf.SnappyFd('test.sz', libpf.MODE_COMPRESS)
 sfd.write(test_str)
 sfd.close()
+
+sfd = libpf.SnappyFd('test.sz', libpf.MODE_DECOMPRESS)
+read_str = sfd.read()
+sfd.close()
+assert read_str == test_str
