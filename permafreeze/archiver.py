@@ -14,22 +14,10 @@ from permafreeze.storage import AmazonStorage
 COMPRESS = 0
 DECOMPRESS = 1
 
-def archive_name(cp, target_name, uuid):
-    return 'ar_{}_{}.tar'.format(
-        target_name,
-        uuid
-        )
-
-def local_archive_dir(cp):
-    local_archive_dir = os.path.join(
-        cp.get('options', 'config-dir'),
-        'tmp'
-        )
-    return local_archive_dir
-
 class Archiver(object):
-    def __init__(self, cp, target_name, archive_size=50*1024*1024):
-        self.cp = cp
+    def __init__(self, conf, target_name, archive_size=50*1024*1024):
+        self.cp = conf
+        self.archive_dir = self.cp.tempdir('archives')
         self.target_name = target_name
 
         self.curr_uuid = None
@@ -42,20 +30,17 @@ class Archiver(object):
     def set_callback(self, cb):
         self.cb = cb
 
-    def curr_archive_name(self):
-        return archive_name(self.cp, self.target_name, self.curr_uuid)
-
-    def curr_archive_path(self):
+    def _curr_archive_filepath(self):
         return os.path.join(
-                local_archive_dir(self.cp),
-                self.curr_archive_name(),
+                self.archive_dir,
+                'ar_{}_{}.tar'.format(self.target_name, self.curr_uuid)
                 )
 
     def finish_archive(self):
         if self.curr_archive is not None:
             self.curr_archive.close()
 
-            self.cb(self.curr_uuid, self.curr_archive_path())
+            self.cb(self.curr_uuid, self._curr_archive_filepath())
             self.curr_archive = None
 
         self.curr_archive_size = 0
@@ -63,9 +48,10 @@ class Archiver(object):
     def add_archive_info(self):
         arinfo_file = StringIO(self.curr_uuid)
         with closing(arinfo_file) as arinfo_file:
-            arinfo_ti = Tarinfo("ARCHIVE_INFO")
+            arinfo_ti = tarfile.TarInfo(".ARCHIVE_INFO_PF")
             arinfo_ti.size = len(arinfo_file.getvalue())
             arinfo_ti.type = tarfile.REGTYPE
+            # TODO: add other metadata (in JSON format?)
             self.curr_archive.addfile(arinfo_ti, arinfo_file)
 
     def add_file(self, full_path, uukey, file_size):
@@ -81,15 +67,16 @@ class Archiver(object):
             self.finish_archive()
             self.curr_uuid = 'R' + uuid.uuid4().hex[16:]
             self.curr_archive = tarfile.open(
-                    self.curr_archive_path(),
+                    self._curr_archive_filepath(),
                     mode='w'
                     )
             self.add_archive_info()
 
-            print("Starting archive {}".format(self.curr_archive_name()))
+            print("Starting archive {}".format(self.curr_uuid))
 
         self.curr_archive.add(full_path, arcname=uukey)
         self.curr_archive_size += file_size
 
     def close(self):
+        # TODO: with statement
         self.finish_archive()

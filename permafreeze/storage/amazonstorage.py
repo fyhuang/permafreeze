@@ -77,31 +77,21 @@ class AmazonStorage(object):
     def get_stored_info(self, target):
         self.connect()
 
-        # Try local tree
-        tree_local_fname = os.path.join(self.cp.get('options', 'config-dir'), 'tree-'+target)
-        if os.path.isfile(tree_local_fname):
-            with open(tree_local_fname, 'rb') as f:
-                old_tree = tree.load_tree(f.read())
-        else:
-            # If no local tree, load from S3
-            print("Loading trees from S3")
-            newest_tree = self.newest_s3_tree_key(target)
-            tree_data = newest_tree.get_contents_as_string()
-            old_tree = tree.load_tree(tree_data)
+        # If no local tree, load from S3
+        print("Loading trees from S3")
+        newest_tree = self.newest_s3_tree_key(target)
+        tree_data = newest_tree.get_contents_as_string()
+        old_tree = tree.load_tree(tree_data)
 
-
-        return RemoteStoredInfo(tree_local_fname, old_tree)
+        return RemoteStoredInfo(tree_local_fname, all_trees)
 
     def save_tree(self, target, new_tree):
         self.connect()
 
         now_dt = datetime.utcnow()
+        now_dt_str = now_dt.strftime('%Y%m%dT%H%M')
         sio = StringIO()
         tree.save_tree(new_tree, sio)
-
-        tree_local_fname = os.path.join(self.cp.get('options', 'config-dir'), 'tree-'+target)
-        with open(tree_local_fname, 'wb') as f:
-            f.write(sio.getvalue())
 
         # Save to S3
         print("Saving tree to S3")
@@ -111,11 +101,14 @@ class AmazonStorage(object):
         k.key = '{}/trees/{}.{}'.format(
                 s3_pf_prefix,
                 target,
-                now_dt.strftime('%Y%m%dT%H%M')
+                now_dt_str
                 )
+        k.set_metadata('pf:target', target)
+        k.set_metadata('pf:saved_dt', now_dt_str)
         k.set_contents_from_string(sio.getvalue())
 
     def save_archive(self, filename):
+        """Returns the archive ID of the saved object"""
         # Save to Glacier
         self.connect()
 
@@ -127,6 +120,8 @@ class AmazonStorage(object):
                 filename=filename,
                 description="{} {}".format(gl_pf_prefix, basename)
                 )
+
+        # TODO: metadata in the description. filename, is_multi
         '''
         concurrent_create_archive_from_file doesn't seem to support descriptions yet
         return self.gl_vault.concurrent_create_archive_from_file(

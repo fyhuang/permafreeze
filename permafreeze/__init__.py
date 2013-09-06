@@ -93,7 +93,7 @@ class PfConfig(configparser.SafeConfigParser):
             if not self.has_option(s, o):
                 self.set(s, o, v)
 
-        TEMPDIR_PATH = '{}/{}'.format(tempfile.gettempdir(), getpass.getuser())
+        TEMPDIR_PATH = tempfile.mkdtemp('pf{}'.format(getpass.getuser()))
 
         opts = {'dry-run': 'False',
                 'ignore-dotfiles': 'False',
@@ -106,8 +106,8 @@ class PfConfig(configparser.SafeConfigParser):
                 's3-port': '443',
                 's3-create-bucket': 'False',
 
-                's3-pf-prefix': 'permafreeze-' + cp.get('options', 'site-name'),
-                'glacier-pf-prefix': 'permafreeze site:{}'.format(cp.get('options', 'site-name')),
+                's3-pf-prefix': 'permafreeze-' + self.get('options', 'site-name'),
+                'glacier-pf-prefix': 'permafreeze site:{}'.format(self.get('options', 'site-name')),
                 }
 
         for (name, val) in opts.items():
@@ -115,7 +115,12 @@ class PfConfig(configparser.SafeConfigParser):
 
         # Temporary directories
         self.default_tempdir = self.getopt('temp-dir') == TEMPDIR_PATH
+        if not self.default_tempdir:
+            # We need to remove the tempdir that we created
+            os.rmdir(TEMPDIR_PATH)
+
         if not self.has_option('options', 'cache-dir'):
+            # TODO: should cache dir be persistent?
             self.set('options', 'cache-dir',
                      os.path.join(self.getopt('temp-dir'), 'cache'))
             if not os.path.isdir(self.getopt('cache-dir')):
@@ -134,13 +139,14 @@ class PfConfig(configparser.SafeConfigParser):
         return tmpdir_path
 
     def cleanup(self):
+        """Removes temporary directory if it is the default one. Idempotent."""
         if self.default_tempdir and os.path.isdir(self.getopt('temp-dir')):
             shutil.rmtree(self.getopt('temp-dir'))
 
     # Support for with statement
     def __enter__(self):
         return self
-    def __exit__(self):
+    def __exit__(self, extype, exvalue, extb):
         self.cleanup()
 
 def load_config(config_filename):

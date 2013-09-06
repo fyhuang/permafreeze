@@ -28,24 +28,23 @@ class FileCache(object):
             # 512 MB
             maxsize = 512 * 1024 * 1024):
 
-        self.cached = {} # filename to refcount
+        self.refcount = {} # filename to refcount
         self.can_delete = collections.deque()
 
         self.cp = cp
-        self.cachedir = cp.get('options', 'cache-dir')
-        mkdir_p(self.cachedir)
+        self.cachedir = cp.getopt('cache-dir')
         self.maxsize = maxsize
 
         # TODO: scan existing cached files?
 
     def _notify_inactive(self, cf):
-        self.cached[cf.filename] -= 1
-        if self.cached[cf.filename] == 0:
+        self.refcount[cf.filename] -= 1
+        if self.refcount[cf.filename] == 0:
             self.can_delete.append(cf.filename)
-        elif self.cached[cf.filename] < 0:
+        elif self.refcount[cf.filename] < 0:
             raise RuntimeError("FileCache: refcount error")
 
-    def _compute_size(self):
+    def compute_size(self):
         total_size = 0
         for (root, dirs, files) in os.walk(self.cachedir):
             for fn in files:
@@ -53,16 +52,16 @@ class FileCache(object):
         return total_size
 
     def getfile(self, filename):
-        if filename in self.cached:
-            self.cached[filename] += 1
+        if filename in self.refcount:
+            self.refcount[filename] += 1
             return CachedFile(filename, self)
         else:
             raise KeyError()
 
     def newfile(self, filename):
-        self.cached[filename] = 1
+        self.refcount[filename] = 1
         # Check if max size is over
-        if self._compute_size() > self.maxsize:
+        if self.compute_size() > self.maxsize:
             self.cleanup()
 
         return CachedFile(filename, self)
@@ -70,10 +69,10 @@ class FileCache(object):
     def cleanup(self):
         while len(self.can_delete) > 0:
             fn = self.can_delete.popleft()
-            if fn in self.cached:
-                if self.cached[fn] > 0:
+            if fn in self.refcount:
+                if self.refcount[fn] > 0:
                     continue
-                del self.cached[fn]
+                del self.refcount[fn]
 
             try:
                 full_fn = os.path.join(self.cachedir, fn)

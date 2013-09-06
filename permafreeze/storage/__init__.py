@@ -5,11 +5,11 @@ import datetime
 import collections
 
 RemoteStoredInfo = collections.namedtuple('RemoteStoredInfo',
-        ['tree_local_fname', 'last_tree'])
+        ['tree_local_fname', 'all_trees'])
 
 from permafreeze import tree
 from permafreeze.storage.filecache import FileCache
-from permafreeze.storage.fakestorage import FakeStorage
+from permafreeze.storage.fakestorage import LocalStorage
 from permafreeze.storage.amazonstorage import AmazonStorage
 
 

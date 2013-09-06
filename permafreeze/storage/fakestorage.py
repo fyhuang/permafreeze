@@ -3,36 +3,38 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import os
 import os.path
 import shutil
-import tarfile
-from StringIO import StringIO
 
+from permafreeze import mkdir_p
 from permafreeze.storage import RemoteStoredInfo, FileCache
 
-FAKE_STORAGE_DIR = "tmp"
+class LocalStorageKey(object):
+    pass
 
-class FakeStorage(object):
-    def __init__(self, cp):
+class LocalStorage(object):
+    def __init__(self, cp, target_dir):
         self.cp = cp
         self.cache = FileCache(cp)
 
+        self.target_dir = target_dir
+        self.trees_dir = os.path.join(target_dir, 'trees')
+        self.archives_dir = os.path.join(target_dir, 'archives')
+
+        mkdir_p(self.trees_dir)
+        mkdir_p(self.archives_dir)
+
     def get_stored_info(self, target):
-        tree_local_fname = os.path.join(self.cp.get('options', 'config-dir'), 'tree-'+target)
-        return RemoteStoredInfo(tree_local_fname, tree.Tree())
+        return RemoteStoredInfo(tree_local_fname, [])
 
     def save_tree(self, target, new_tree):
-        sio = StringIO()
-        tree.save_tree(new_tree, sio)
-
-        tree_local_fname = os.path.join(self.cp.get('options', 'config-dir'), 'tree-'+target)
+        now_dt = datetime.utcnow()
+        tree_local_fname = os.path.join(self.trees_dir, now_dt.strftime('%Y%m%dT%H%M'))
         with open(tree_local_fname, 'wb') as f:
-            f.write(sio.getvalue())
+            tree.save_tree(new_tree, f)
 
     def save_archive(self, filename):
-        if not os.path.isdir(FAKE_STORAGE_DIR):
-            os.mkdir(FAKE_STORAGE_DIR)
-        basename = os.path.basename(filename)
-        shutil.copy(filename, os.path.join(FAKE_STORAGE_DIR, basename))
-        return basename
+        archive_id = hashlib.sha224(filename).hexdigest()
+        shutil.copy(filename, os.path.join(self.archives_dir, archive_id))
+        return archive_id
 
     def load_archive(self, ar_name):
         afile = self.cache.newfile(ar_name)
