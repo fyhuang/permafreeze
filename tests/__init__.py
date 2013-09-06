@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import os
 import os.path
 import struct
@@ -5,16 +7,20 @@ import random
 
 from permafreeze import PfConfig
 
+TESTS_MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
+TEST_FILES_DIR = os.path.join(TESTS_MODULE_DIR, "files")
+TEST_FILES_TGT = "testfiles"
+
 def get_test_config():
     cp = PfConfig()
     cp.add_section("options")
-    cp.set("options", "site-name", "test")
-    cp.set("options", "s3-bucket-name", "test")
-    cp.set("options", "glacier-vault-name", "test")
+    cp.set("options", "site-name", "testsite")
+    cp.set("options", "s3-bucket-name", "testsite")
+    cp.set("options", "glacier-vault-name", "testsite")
     cp.set("options", "s3-create-bucket", "True")
     cp.set("options", "config-dir", "cfg")
     cp.add_section("targets")
-    cp.set("targets", "testfiles", TESTFILES_PATH)
+    cp.set("targets", TEST_FILES_TGT, TEST_FILES_DIR)
 
     cp.set("options", "s3-host", "127.0.0.1")
     cp.set("options", "s3-port", "4567")
