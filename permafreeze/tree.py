@@ -9,8 +9,6 @@ import StringIO as stringio
 
 TREE_VER_P1 = 1
 
-TREE_DT_FMT = "%Y-%m-%dT%H:%M"
-
 TreeEntry = collections.namedtuple('TreeEntry', ['uukey', 'last_hashed'])
 UukeyStorage = collections.namedtuple('UukeyStorage', [
     'multifile', # True/False
@@ -50,7 +48,7 @@ class Tree(object):
         return uukey in self.uukey_to_storage
 
 
-def generated_dt_from_str(data):
+def tree_from_str(data):
     sio = stringio.StringIO(data)
     magic_str = sio.read(4)
     if magic_str != b'PFTR':
@@ -61,27 +59,11 @@ def generated_dt_from_str(data):
     if version != TREE_VER_P1:
         raise RuntimeError("tree version not supported")
 
-    date_str = sio.read(len(TREE_DT_FMT))
-    return datetime.strptime(date_str, TREE_DT_FMT)
-
-def tree_from_str(data):
-    sio = stringio.StringIO(data)
-    magic_str = sio.read(4)
-    if magic_str != b'PFTR':
-        raise RuntimeError("magic string not found")
-
-    version_str = sio.read(4 + len(TREE_DT_FMT))
-    version, date_str = struct.unpack("!I{}s".format(len(TREE_DT_FMT)), version_str)
-    if version != TREE_VER_P1:
-        raise RuntimeError("tree version not supported")
-
     return pickle.load(sio)
 
 def save_tree(tree_to_save, fp):
     fp.write(b'PFTR')
-    fp.write(struct.pack(b'!I{}s'.format(len(TREE_DT_FMT)),
-        TREE_VER_P1,
-        tree_to_save.generated_dt.strftime(TREE_DT_FMT)))
+    fp.write(struct.pack(b'!I', TREE_VER_P1))
     pickle.dump(tree_to_save, fp)
 
 def print_tree(tree):

@@ -3,7 +3,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import os.path
 import unittest
 
-from tests import get_test_config, TEST_FILES_DIR, TEST_FILES_TGT
+from tests import get_test_config
 from permafreeze.storage import FileCache
 
 class TestFileCache(unittest.TestCase):

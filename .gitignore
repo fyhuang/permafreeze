@@ -29,3 +29,6 @@ pip-log.txt
 
 # vim
 .*.swp
+
+# Built C libs
+libpf.so
