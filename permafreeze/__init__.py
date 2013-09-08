@@ -64,7 +64,7 @@ def print_progress(ratio, width=50):
 
 
 from permafreeze import tree, archiver, storage
-from permafreeze.do_freeze import do_freeze
+from permafreeze.freeze import do_freeze
 
 
 def process_all(cp, func, st, extra):
