@@ -4,6 +4,7 @@ import os
 import os.path
 import json
 import shutil
+import hashlib
 from datetime import datetime
 
 from permafreeze import mkdir_p, tree

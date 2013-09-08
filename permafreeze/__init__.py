@@ -1,3 +1,11 @@
+"""
+Terminology:
+    - File, a file. Has uukey.
+    - Tree, in-memory representation of filesystem tree
+    - Pack, collection of small files. UUID starts with P
+    - Storage Tag, a storage-specific identifier for a file or pack
+"""
+
 from __future__ import division, absolute_import, print_function, unicode_literals
 
 import os

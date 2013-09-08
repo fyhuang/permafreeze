@@ -14,6 +14,7 @@ from permafreeze.storage import AmazonStorage
 COMPRESS = 0
 DECOMPRESS = 1
 
+# TODO: rename Archiver to Packer
 class Archiver(object):
     def __init__(self, conf, target_name, archive_size=50*1024*1024):
         self.cp = conf
@@ -65,7 +66,7 @@ class Archiver(object):
                 self.curr_archive_size >= self.archive_size:
 
             self.finish_archive()
-            self.curr_uuid = 'R' + uuid.uuid4().hex[16:]
+            self.curr_uuid = 'P' + uuid.uuid4().hex[15:]
             self.curr_archive = tarfile.open(
                     self._curr_archive_filepath(),
                     mode='w'
@@ -76,6 +77,7 @@ class Archiver(object):
 
         self.curr_archive.add(full_path, arcname=uukey)
         self.curr_archive_size += file_size
+        return self.curr_uuid
 
     def close(self):
         # TODO: with statement

@@ -9,14 +9,7 @@ import StringIO as stringio
 
 TREE_VER_P1 = 1
 
-TreeEntry = collections.namedtuple('TreeEntry', ['uukey', 'last_hashed'])
-UukeyStorage = collections.namedtuple('UukeyStorage', [
-    'multifile', # True/False
-    'archive' # Archive ID
-    ])
-
-STORAGE_PLACEHOLDER = UukeyStorage(False, None)
-STORAGE_PLACEHOLDER_MULTI = UukeyStorage(True, None)
+TreeEntry = collections.namedtuple('TreeEntry', ['uuid', 'last_hashed'])
 
 class Tree(object):
     def __init__(self, **kwargs):
@@ -25,11 +18,14 @@ class Tree(object):
         self.dirs = [] # TODO
         # Map from file path to symlink target
         self.symlinks = {}
-        # Map from uukey to storage location (UukeyStorage)
-        self.uukey_to_storage = {}
+
+        # Map from uukey to pack
+        self.file_pack = {}
+        # Map from uuid to storage tag
+        self.uuid_to_storage = {}
         self.generated_dt = None
 
-        props_to_copy = ['files', 'dirs', 'symlinks', 'uukey_to_storage', 'generated_dt']
+        props_to_copy = ['files', 'dirs', 'symlinks', 'file_pack', 'uuid_to_storage', 'generated_dt']
         for p in props_to_copy:
             if p in kwargs:
                 self.__dict__[p] = kwargs[p]
@@ -40,12 +36,28 @@ class Tree(object):
                 files = self.files.copy(),
                 dirs = self.dirs[:],
                 symlinks = self.symlinks.copy(),
-                uukey_to_storage = self.uukey_to_storage.copy(),
+                file_pack = self.file_pack.copy(),
+                uuid_to_storage = self.uuid_to_storage.copy(),
                 generated_dt = copy.copy(self.generated_dt)
                 )
 
-    def has_uukey(self, uukey):
-        return uukey in self.uukey_to_storage
+    def is_stored(self, uuid):
+        if uuid in self.file_pack:
+            return True
+        if uuid in self.uuid_to_storage:
+            return True
+        return False
+
+    def uuid_type(self, uuid):
+        if uuid in self.file_pack:
+            return 'smallfile'
+        elif uuid in self.uuid_to_storage:
+            if uuid[0] == 'P':
+                return 'pack'
+            else:
+                return 'largefile'
+        else:
+            return None
 
 
 def tree_from_str(data):
@@ -71,6 +83,6 @@ def print_tree(tree):
         print('{}:\n\t{}'.format(path, te))
         print()
 
-    print(tree.uukey_to_storage)
+    print(tree.uuid_to_storage)
     print(tree.dirs)
     print(tree.symlinks)
