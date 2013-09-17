@@ -10,9 +10,21 @@ from datetime import datetime
 from contextlib import closing
 from multiprocessing import Queue, Process
 import Queue as queue
+from collections import namedtuple
 
-from permafreeze import uukey_and_size, formatpath, print_progress
+from permafreeze import uukey_and_size, formatpath, M_ProgressReport
 from permafreeze import tree, archiver
+from permafreeze.logger import log
+
+
+class M_StartedProcessingFile(namedtuple('M_StartedProcessingFile', ['target_path', 'full_path'])):
+    def __repr__(self):
+        return formatpath(self.target_path)
+
+class M_ProcessFileResult(namedtuple('M_ProcessFileResult', ['result'])):
+    def __repr__(self):
+        return '\t... {}'.format(self.result)
+
 
 class FileUploader(object):
     def __init__(self, cp, st):
@@ -94,11 +106,10 @@ def iter_files(cp, target_root_path, old_tree):
             full_path = os.path.join(root, fn)
             target_path = os.path.join(prefix, fn)
 
-            print(formatpath(target_path), end="")
-            sys.stdout.flush()
+            log(M_StartedProcessingFile(target_path, full_path))
             
             if should_skip(cp, target_path, full_path, old_tree):
-                print('Skip')
+                log(M_ProcessFileResult('Skip'))
                 continue
 
             yield (full_path, target_path)
@@ -147,14 +158,14 @@ def do_freeze(cp, old_tree, target_name):
         # Symlinks
         if os.path.islink(full_path):
             store_symlink(full_path, target_path)
-            print('OK')
+            log(M_ProcessFileResult('Symlink'))
             continue
 
         # Hash and check if data already stored
         uukey, file_size = uukey_and_size(full_path)
         if cp.getboolean('options', 'tree-only'):
             new_tree.files[target_path] = tree.TreeEntry(uukey, None)
-            print('{}'.format(uukey[:32]))
+            log(M_ProcessFileResult('{}'.format(uukey[:32])))
             continue
 
 
@@ -164,7 +175,7 @@ def do_freeze(cp, old_tree, target_name):
                 store_file_small(full_path, uukey, target_path)
             else:
                 store_file_large(full_path, uukey, target_path)
-            print('{}'.format(uukey[:32]))
+            log(M_ProcessFileResult('{}'.format(uukey[:32])))
         else:
             print('ERROR: should be skipped')
 
@@ -174,13 +185,11 @@ def do_freeze(cp, old_tree, target_name):
     uploader.to_store.put('Done')
 
     # Progress indicator
-    print("\nWaiting for uploads to complete")
     while True:
         num_processed = uploader.progress.get()
-        print_progress(num_processed / uploader.num_requested)
+        log(M_ProgressReport(num_processed, uploader.num_requested))
         if num_processed == uploader.num_requested:
             break
-    print()
     uploader.join()
 
     # Resolve archive IDs

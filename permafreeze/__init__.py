@@ -19,6 +19,8 @@ import argparse
 import tempfile
 
 from datetime import datetime
+from StringIO import StringIO
+from collections import namedtuple
 import ConfigParser as configparser
 
 # For DefaultHost
@@ -51,16 +53,21 @@ def formatpath(filename, maxlen=48):
         rest = maxlen - len(filename)
         return filename + (" "*rest)
 
-def print_progress(ratio, width=50):
-    sys.stdout.write('[')
-    for i in range(width):
-        cratio = i / width
-        if cratio <= ratio:
-            sys.stdout.write('#')
-        else:
-            sys.stdout.write(' ')
-    sys.stdout.write("] {}%\r".format(ratio * 100))
-    sys.stdout.flush()
+class M_ProgressReport(namedtuple('M_ProgressReport', ['done', 'total'])):
+    def __repr__(self):
+        width = 50
+        ratio = self.done / self.total
+
+        sio = StringIO()
+        sio.write('[')
+        for i in range(width):
+            cratio = i / width
+            if cratio <= ratio:
+                sio.write('#')
+            else:
+                sio.write(' ')
+        sio.write("] {}%".format(ratio * 100))
+        return sio.getvalue()
 
 
 from permafreeze import tree, archiver, storage

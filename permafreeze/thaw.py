@@ -19,7 +19,7 @@ def uukeys_and_archives(tree):
     result.sort(key=lambda e: e[2])
     return result
 
-def do_thaw(cp, tree, dest_path, st):
+def do_thaw(conf, tree, dest_path):
     """st: the storage object to pull archives from"""
 
     # Files
@@ -34,12 +34,12 @@ def do_thaw(cp, tree, dest_path, st):
 
         mkdir_p(dirname)
 
-        us = tree.uukey_to_storage[entry.uukey]
-        archive_id = us.archive
-        archive_cf = st.load_archive(archive_id)
-        with closing(archive_cf):
-            if us.multifile:
-                archive = tarfile.open(archive_cf.fullpath(), 'r')
+        storage_id = tree.uuid_to_storage[entry.uuid]
+        data_cf = st.load_archive(storage_id)
+        with closing(data_cf):
+            utype = tree.uuid_type(entry.uukey)
+            if utype == 'smallfile':
+                archive = tarfile.open(data_cf.fullpath(), 'r')
                 with closing(archive):
                     inf = archive.extractfile(entry.uukey)
 
@@ -47,7 +47,7 @@ def do_thaw(cp, tree, dest_path, st):
                         shutil.copyfileobj(inf, outf)
                         print("OK")
             else:
-                shutil.copy(archive_cf.fullpath(), fullpath)
+                shutil.copy(data_cf.fullpath(), fullpath)
                 print("OK")
 
     # Symlinks
