@@ -53,6 +53,22 @@ def formatpath(filename, maxlen=48):
         rest = maxlen - len(filename)
         return filename + (" "*rest)
 
+def files_to_consider(conf, target_name):
+    root_path = conf.get('targets', target_name)
+    for (root, dirs, files) in os.walk(root_path):
+        prefix = root[len(root_path):]
+        if len(prefix) == 0:
+            prefix = '/'
+
+        for fn in files:
+            full_path = os.path.join(root, fn)
+            target_path = os.path.join(prefix, fn)
+            # TODO: excludes, etc.
+            yield (full_path, target_path)
+
+        # TODO: dirs
+
+
 class M_ProgressReport(namedtuple('M_ProgressReport', ['done', 'total'])):
     def __repr__(self):
         width = 50

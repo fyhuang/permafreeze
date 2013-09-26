@@ -154,6 +154,7 @@ def do_freeze(cp, old_tree, target_name):
     ar = archiver.Archiver(cp, target_name)
     ar.set_callback(store_archive)
 
+    # TODO: Use files_to_consider
     for (full_path, target_path) in iter_files(cp, root_path, old_tree):
         # Symlinks
         if os.path.islink(full_path):

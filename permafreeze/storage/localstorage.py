@@ -57,7 +57,9 @@ class LocalStorage(object):
         return archive_id
 
     def load_archive(self, ar_name):
+        if self.cache.hasfile(ar_name):
+            return self.cache.getfile(ar_name)
         afile = self.cache.newfile(ar_name)
-        shutil.copy(os.path.join(FAKE_STORAGE_DIR, ar_name), afile.fullpath())
+        shutil.copy(os.path.join(self.archives_dir, ar_name), afile.fullpath())
         return afile
 

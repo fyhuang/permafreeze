@@ -34,19 +34,22 @@ def do_thaw(conf, tree, dest_path):
 
         mkdir_p(dirname)
 
-        storage_id = tree.uuid_to_storage[entry.uuid]
-        data_cf = st.load_archive(storage_id)
-        with closing(data_cf):
-            utype = tree.uuid_type(entry.uukey)
-            if utype == 'smallfile':
-                archive = tarfile.open(data_cf.fullpath(), 'r')
-                with closing(archive):
-                    inf = archive.extractfile(entry.uukey)
+        utype = tree.uuid_type(entry.uuid)
+        if utype == 'smallfile':
+            # Small file
+            pack_id = tree.file_pack[entry.uuid]
+            data_cf = conf.st.load_archive(tree.uuid_to_storage[pack_id])
+            archive = tarfile.open(data_cf.fullpath(), 'r')
+            with closing(archive):
+                inf = archive.extractfile(entry.uuid)
 
-                    with closing(inf), open(fullpath, 'wb') as outf:
-                        shutil.copyfileobj(inf, outf)
-                        print("OK")
-            else:
+                with closing(inf), open(fullpath, 'wb') as outf:
+                    shutil.copyfileobj(inf, outf)
+                    print("OK")
+        else:
+            storage_id = tree.uuid_to_storage[entry.uuid]
+            data_cf = conf.st.load_archive(storage_id)
+            with closing(data_cf):
                 shutil.copy(data_cf.fullpath(), fullpath)
                 print("OK")
 

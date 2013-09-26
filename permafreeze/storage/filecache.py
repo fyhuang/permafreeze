@@ -51,6 +51,9 @@ class FileCache(object):
                 total_size += os.path.getsize(os.path.join(root, fn))
         return total_size
 
+    def hasfile(self, filename):
+        return filename in self.refcount and self.refcount[filename] > 0
+
     def getfile(self, filename):
         if filename in self.refcount:
             self.refcount[filename] += 1
@@ -59,11 +62,14 @@ class FileCache(object):
             raise KeyError()
 
     def newfile(self, filename):
-        self.refcount[filename] = 1
+        if filename in self.refcount and self.refcount[filename] > 0:
+            raise Exception("newfile: already exists")
+
         # Check if max size is over
         if self.compute_size() > self.maxsize:
             self.cleanup()
 
+        self.refcount[filename] = 1
         return CachedFile(filename, self)
 
     def cleanup(self):
