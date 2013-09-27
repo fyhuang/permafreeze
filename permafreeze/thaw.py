@@ -9,6 +9,8 @@ import tarfile
 from contextlib import closing
 
 from permafreeze import formatpath, mkdir_p
+from permafreeze.logger import log
+from permafreeze.messages import StartedProcessingFile, ProcessFileResult
 
 def uukeys_and_archives(tree):
     result = []
@@ -24,10 +26,9 @@ def do_thaw(conf, tree, dest_path):
 
     # Files
     for (relpath, entry) in tree.files.items():
-        print(formatpath(relpath), end="")
-        sys.stdout.flush()
-
         fullpath = os.path.join(dest_path, relpath.lstrip('/'))
+        log(StartedProcessingFile(relpath, fullpath))
+
         dirname = os.path.dirname(fullpath)
         # Sanity check
         assert dest_path.rstrip('/') in dirname
@@ -45,20 +46,19 @@ def do_thaw(conf, tree, dest_path):
 
                 with closing(inf), open(fullpath, 'wb') as outf:
                     shutil.copyfileobj(inf, outf)
-                    print("OK")
+                    log(ProcessFileResult('OK'))
         else:
-            storage_id = tree.uuid_to_storage[entry.uuid]
-            data_cf = conf.st.load_archive(storage_id)
+            storage_tag = tree.uuid_to_storage[entry.uuid]
+            data_cf = conf.st.load_archive(storage_tag)
             with closing(data_cf):
                 shutil.copy(data_cf.fullpath(), fullpath)
-                print("OK")
+                log(ProcessFileResult('OK'))
 
     # Symlinks
     for (spath, starget) in tree.symlinks.items():
-        print(formatpath(spath), end="")
-        sys.stdout.flush()
-
         fullpath = os.path.join(dest_path, spath.lstrip('/'))
+        log(StartedProcessingFile(relpath, fullpath))
+
         dirname = os.path.dirname(fullpath)
         # Sanity check
         assert dest_path.rstrip('/') in dirname
@@ -73,4 +73,4 @@ def do_thaw(conf, tree, dest_path):
                 pass
             else: raise
 
-        print("OK")
+        log(ProcessFileResult('OK'))

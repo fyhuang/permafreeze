@@ -8,6 +8,7 @@ from tests import get_test_config, TEST_FILES_DIR, TEST_FILES_TGT
 from permafreeze import tree, logger, files_to_consider
 from permafreeze.freeze import do_freeze
 from permafreeze.thaw import do_thaw
+from permafreeze.check import do_check
 from permafreeze.storage import LocalStorage
 
 class TestActions(unittest.TestCase):
@@ -39,4 +40,12 @@ class TestActions(unittest.TestCase):
                 self.assertTrue(filecmp.cmp(full_path, fthaw))
 
     def testCheckLocal(self):
-        pass
+        conf = get_test_config()
+        with conf:
+            conf.st = LocalStorage(conf, conf.tempdir("testCheckLocal"))
+            old_tree = tree.Tree()
+            new_tree = do_freeze(conf, old_tree, TEST_FILES_TGT)
+            
+            # Now check
+            logger.reset_cb()
+            do_check(conf, new_tree, TEST_FILES_TGT)

@@ -10,6 +10,8 @@ from contextlib import closing
 import snappy
 
 from permafreeze.storage import AmazonStorage
+from permafreeze.logger import log
+from permafreeze.messages import PackStarted
 
 COMPRESS = 0
 DECOMPRESS = 1
@@ -73,7 +75,7 @@ class Archiver(object):
                     )
             self.add_archive_info()
 
-            print("Starting archive {}".format(self.curr_uuid))
+            log(PackStarted(self.curr_uuid))
 
         self.curr_archive.add(full_path, arcname=uukey)
         self.curr_archive_size += file_size

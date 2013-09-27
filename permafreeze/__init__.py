@@ -54,6 +54,7 @@ def formatpath(filename, maxlen=48):
         return filename + (" "*rest)
 
 def files_to_consider(conf, target_name):
+    ignore_dotfiles = conf.getboolean('options', 'ignore-dotfiles')
     root_path = conf.get('targets', target_name)
     for (root, dirs, files) in os.walk(root_path):
         prefix = root[len(root_path):]
@@ -63,27 +64,14 @@ def files_to_consider(conf, target_name):
         for fn in files:
             full_path = os.path.join(root, fn)
             target_path = os.path.join(prefix, fn)
+
             # TODO: excludes, etc.
+            if ignore_dotfiles and fn[0] == '.':
+                continue
+
             yield (full_path, target_path)
 
         # TODO: dirs
-
-
-class M_ProgressReport(namedtuple('M_ProgressReport', ['done', 'total'])):
-    def __repr__(self):
-        width = 50
-        ratio = self.done / self.total
-
-        sio = StringIO()
-        sio.write('[')
-        for i in range(width):
-            cratio = i / width
-            if cratio <= ratio:
-                sio.write('#')
-            else:
-                sio.write(' ')
-        sio.write("] {}%".format(ratio * 100))
-        return sio.getvalue()
 
 
 from permafreeze import tree, archiver, storage

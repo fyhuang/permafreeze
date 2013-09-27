@@ -16,3 +16,7 @@ def log(obj):
 def set_cb(cb):
     global callback
     callback = cb
+
+def reset_cb():
+    global callback
+    callback = printmsg

@@ -10,20 +10,11 @@ from datetime import datetime
 from contextlib import closing
 from multiprocessing import Queue, Process
 import Queue as queue
-from collections import namedtuple
 
-from permafreeze import uukey_and_size, formatpath, M_ProgressReport
+from permafreeze import uukey_and_size, formatpath, files_to_consider
 from permafreeze import tree, archiver
 from permafreeze.logger import log
-
-
-class M_StartedProcessingFile(namedtuple('M_StartedProcessingFile', ['target_path', 'full_path'])):
-    def __repr__(self):
-        return formatpath(self.target_path)
-
-class M_ProcessFileResult(namedtuple('M_ProcessFileResult', ['result'])):
-    def __repr__(self):
-        return '\t... {}'.format(self.result)
+from permafreeze.messages import StartedProcessingFile, ProcessFileResult, ProgressReport
 
 
 class FileUploader(object):
@@ -64,10 +55,6 @@ class FileUploader(object):
 
 
 def should_skip(cp, target_path, full_path, old_tree):
-    if cp.getboolean('options', 'ignore-dotfiles'):
-        if os.path.basename(full_path)[0] == '.':
-            return True
-
     try:
         sb = os.stat(full_path)
         if not stat.S_ISREG(sb.st_mode) and \
@@ -95,24 +82,6 @@ def should_skip(cp, target_path, full_path, old_tree):
         pass
 
     return False
-
-def iter_files(cp, target_root_path, old_tree):
-    for (root, dirs, files) in os.walk(target_root_path):
-        prefix = root[len(target_root_path):]
-        if len(prefix) == 0:
-            prefix = '/'
-
-        for fn in files:
-            full_path = os.path.join(root, fn)
-            target_path = os.path.join(prefix, fn)
-
-            log(M_StartedProcessingFile(target_path, full_path))
-            
-            if should_skip(cp, target_path, full_path, old_tree):
-                log(M_ProcessFileResult('Skip'))
-                continue
-
-            yield (full_path, target_path)
 
 
 def do_freeze(cp, old_tree, target_name):
@@ -155,18 +124,25 @@ def do_freeze(cp, old_tree, target_name):
     ar.set_callback(store_archive)
 
     # TODO: Use files_to_consider
-    for (full_path, target_path) in iter_files(cp, root_path, old_tree):
+    for (full_path, target_path) in files_to_consider(cp, target_name):
+        log(StartedProcessingFile(target_path, full_path))
+
+        # Should we skip this file?
+        if should_skip(cp, target_path, full_path, old_tree):
+            log(ProcessFileResult('Skip'))
+            continue
+
         # Symlinks
         if os.path.islink(full_path):
             store_symlink(full_path, target_path)
-            log(M_ProcessFileResult('Symlink'))
+            log(ProcessFileResult('Symlink'))
             continue
 
         # Hash and check if data already stored
         uukey, file_size = uukey_and_size(full_path)
         if cp.getboolean('options', 'tree-only'):
             new_tree.files[target_path] = tree.TreeEntry(uukey, None)
-            log(M_ProcessFileResult('{}'.format(uukey[:32])))
+            log(ProcessFileResult('{}'.format(uukey[:32])))
             continue
 
 
@@ -176,7 +152,7 @@ def do_freeze(cp, old_tree, target_name):
                 store_file_small(full_path, uukey, target_path)
             else:
                 store_file_large(full_path, uukey, target_path)
-            log(M_ProcessFileResult('{}'.format(uukey[:32])))
+            log(ProcessFileResult('{}'.format(uukey[:32])))
         else:
             print('ERROR: should be skipped')
 
@@ -188,7 +164,7 @@ def do_freeze(cp, old_tree, target_name):
     # Progress indicator
     while True:
         num_processed = uploader.progress.get()
-        log(M_ProgressReport(num_processed, uploader.num_requested))
+        log(ProgressReport(num_processed, uploader.num_requested))
         if num_processed == uploader.num_requested:
             break
     uploader.join()
