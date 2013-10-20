@@ -1,4 +1,7 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
+from future import standard_library
+from future.builtins import *
 
 import os
 import os.path
@@ -17,6 +20,8 @@ from permafreeze.logger import log
 from permafreeze.messages import StartedProcessingFile, ProcessFileResult, ProgressReport
 
 
+UPLOAD_DONE = 0xDEADBEEF
+
 class FileUploader(object):
     def __init__(self, cp, st):
         self.to_store = Queue()
@@ -32,7 +37,7 @@ class FileUploader(object):
         num_processed = 0
         while True:
             nextitem = self.to_store.get()
-            if isinstance(nextitem, unicode) and nextitem == 'Done':
+            if nextitem == UPLOAD_DONE:
                 break
 
             full_path, uukey = nextitem
@@ -55,6 +60,7 @@ class FileUploader(object):
 
 
 def should_skip(cp, target_path, full_path, old_tree):
+    # TODO: file permissions, owner, etc.
     try:
         sb = os.stat(full_path)
         if not stat.S_ISREG(sb.st_mode) and \
@@ -69,7 +75,7 @@ def should_skip(cp, target_path, full_path, old_tree):
     # TODO: UTC or not?
     mtime_dt = datetime.utcfromtimestamp(sb.st_mtime)
     try:
-        old_entry = old_tree.files[target_path]
+        old_entry = old_tree.entries[target_path]
         if old_entry.last_hashed is None:
             # Never been hashed
             return False
@@ -116,7 +122,7 @@ def do_freeze(cp, old_tree, target_name):
         if symlink_target.startswith(root_path):
             symlink_target = os.path.relpath(symlink_target, os.path.dirname(full_path))
 
-        new_tree.symlinks[target_path] = symlink_target
+        new_tree.entries[target_path] = tree.SymlinkEntry(symlink_target)
 
 
     root_path = cp.get('targets', target_name)
@@ -145,8 +151,8 @@ def do_freeze(cp, old_tree, target_name):
             log(ProcessFileResult('{}'.format(uukey[:32])))
             continue
 
-
-        new_tree.files[target_path] = tree.TreeEntry(uukey, datetime.utcnow())
+        # TODO: posix stuff
+        new_tree.entries[target_path] = tree.FileEntry(0, 0, 0, uukey, datetime.utcnow())
         if not new_tree.is_stored(uukey):
             if file_size <= cp.getint('options', 'filesize-limit'):
                 store_file_small(full_path, uukey, target_path)
@@ -159,7 +165,7 @@ def do_freeze(cp, old_tree, target_name):
 
     # Update archive IDs
     ar.finish_archive()
-    uploader.to_store.put('Done')
+    uploader.to_store.put(UPLOAD_DONE)
 
     # Progress indicator
     while True:

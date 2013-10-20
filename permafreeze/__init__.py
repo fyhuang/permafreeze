@@ -6,7 +6,10 @@ Terminology:
     - Storage Tag, a storage-specific identifier for a file or pack
 """
 
-from __future__ import division, absolute_import, print_function, unicode_literals
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
+from future import standard_library
+from future.builtins import *
 
 import os
 import os.path
@@ -19,9 +22,9 @@ import argparse
 import tempfile
 
 from datetime import datetime
-from StringIO import StringIO
+from io import StringIO
 from collections import namedtuple
-import ConfigParser as configparser
+import configparser
 
 # For DefaultHost
 import boto.s3.connection
@@ -118,7 +121,7 @@ class PfConfig(configparser.SafeConfigParser):
                 'ignore-dotfiles': 'False',
                 'ignore-config': 'True',
                 'tree-only': 'False', # DANGEROUS: might be buggy
-                'filesize-limit': str(DEFAULT_FILESIZE_LIMIT),
+                'filesize-limit': repr(DEFAULT_FILESIZE_LIMIT),
                 'temp-dir': TEMPDIR_PATH,
 
                 's3-host': boto.s3.connection.S3Connection.DefaultHost,

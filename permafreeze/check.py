@@ -26,7 +26,7 @@ def do_check(conf, old_tree, target_name):
         mtime_dt = datetime.utcfromtimestamp(os.path.getmtime(full_path))
         check = True
         try:
-            old_entry = old_tree.files[target_path]
+            old_entry = old_tree.entries[target_path]
             if old_entry.last_hashed < mtime_dt:
                 # File has been modified, can't check consistency
                 check = False
@@ -44,7 +44,7 @@ def do_check(conf, old_tree, target_name):
 
     print()
     print("Finished consistency check:")
-    print("{} files on disk ({} skipped), {} in tree".format(total_files, skipped_files, len(old_tree.files)))
+    print("{} files on disk ({} skipped), {} in tree".format(total_files, skipped_files, len(old_tree.entries)))
     print()
     if len(errors) > 0:
         print("{} errors:".format(len(errors)))

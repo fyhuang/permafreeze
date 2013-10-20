@@ -1,23 +1,23 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
+from future import standard_library
+from future.builtins import *
 
 import copy
 import struct
 import pickle
 import datetime
 import collections
-import StringIO as stringio
+from io import StringIO
+
+from permafreeze.treeentry import *
 
 TREE_VER_P1 = 1
-
-TreeEntry = collections.namedtuple('TreeEntry', ['uuid', 'last_hashed'])
 
 class Tree(object):
     def __init__(self, **kwargs):
         # Map from file path to TreeEntry
-        self.files = {}
-        self.dirs = [] # TODO
-        # Map from file path to symlink target
-        self.symlinks = {}
+        self.entries = {}
 
         # Map from uukey to pack
         self.file_pack = {}
@@ -33,9 +33,7 @@ class Tree(object):
 
     def copy(self):
         return Tree(
-                files = self.files.copy(),
-                dirs = self.dirs[:],
-                symlinks = self.symlinks.copy(),
+                entries = self.entries.copy(),
                 file_pack = self.file_pack.copy(),
                 uuid_to_storage = self.uuid_to_storage.copy(),
                 generated_dt = copy.copy(self.generated_dt)
@@ -61,7 +59,7 @@ class Tree(object):
 
 
 def tree_from_str(data):
-    sio = stringio.StringIO(data)
+    sio = StringIO(data)
     magic_str = sio.read(4)
     if magic_str != b'PFTR':
         raise RuntimeError("magic string not found")
@@ -79,10 +77,9 @@ def save_tree(tree_to_save, fp):
     pickle.dump(tree_to_save, fp)
 
 def print_tree(tree):
-    for (path, te) in tree.files.items():
+    for (path, te) in tree.entries.items():
         print('{}:\n\t{}'.format(path, te))
         print()
 
+    print(tree.file_pack)
     print(tree.uuid_to_storage)
-    print(tree.dirs)
-    print(tree.symlinks)
