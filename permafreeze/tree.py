@@ -25,7 +25,7 @@ class Tree(object):
         self.uuid_to_storage = {}
         self.generated_dt = None
 
-        props_to_copy = ['files', 'dirs', 'symlinks', 'file_pack', 'uuid_to_storage', 'generated_dt']
+        props_to_copy = ['entries', 'file_pack', 'uuid_to_storage', 'generated_dt']
         for p in props_to_copy:
             if p in kwargs:
                 self.__dict__[p] = kwargs[p]

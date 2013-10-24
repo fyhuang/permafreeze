@@ -10,6 +10,7 @@ class TreeEntry(object):
     DIR = 1
     SYMLINK = 2
 
+    # TODO: store UID or username?
     def __init__(self, entry_type, posix_uid, posix_gid, posix_perms):
         self.entry_type = entry_type
         self.posix_uid = posix_uid

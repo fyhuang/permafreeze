@@ -8,8 +8,9 @@ import os.path
 import sys
 import stat
 import errno
+import time
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import closing
 from multiprocessing import Queue, Process
 import Queue as queue
@@ -36,6 +37,7 @@ class FileUploader(object):
     def _run(self):
         num_processed = 0
         while True:
+            self.progress.put(num_processed)
             nextitem = self.to_store.get()
             if nextitem == UPLOAD_DONE:
                 break
@@ -45,7 +47,9 @@ class FileUploader(object):
 
             self.done.put((uukey, aid))
             num_processed += 1
-            self.progress.put(num_processed)
+
+        # Report at least one progress when no items processed
+        self.progress.put(num_processed)
 
     def start(self):
         self.proc = Process(target=FileUploader._run, args=(self,))
@@ -59,45 +63,40 @@ class FileUploader(object):
         self.num_requested += 1
 
 
-def should_skip(cp, target_path, full_path, old_tree):
-    # TODO: file permissions, owner, etc.
-    try:
-        sb = os.stat(full_path)
-        if not stat.S_ISREG(sb.st_mode) and \
-                not stat.S_ISLNK(sb.st_mode):
-            # Non-regular file or link
-            return True
-    except OSError as e:
-        if e.errno == errno.ENOENT or \
-                e.errno == errno.EPERM:
-            return True
-
-    # TODO: UTC or not?
+def should_skip(conf, sb, target_path, old_tree):
     mtime_dt = datetime.utcfromtimestamp(sb.st_mtime)
+
     try:
         old_entry = old_tree.entries[target_path]
         if old_entry.last_hashed is None:
             # Never been hashed
             return False
 
+        # Don't skip if any of the POSIX attrs are different
+        if old_entry.posix_uid != sb.st_uid or \
+           old_entry.posix_gid != sb.st_gid or \
+           old_entry.posix_perms != stat.S_IMODE(sb.st_mode):
+            return False
+
         # Make sure the data is stored
         if old_tree.is_stored(old_entry.uuid):
-            if old_entry.last_hashed >= mtime_dt:
-                return True
+            if old_entry.last_hashed >= (mtime_dt + timedelta(seconds=5)):
+                return 'Not modified ({} >= {})'.format(old_entry.last_hashed, mtime_dt)
     except KeyError: # old_tree.files doesn't contain target_path
         pass
 
     return False
 
 
-def do_freeze(cp, old_tree, target_name):
-    if not cp.has_option('targets', target_name):
+def do_freeze(conf, old_tree, target_name):
+    if not conf.has_option('targets', target_name):
         print("ERROR: target {} doesn't exist".format(target_name))
         return None
 
-    dry_run = cp.getboolean('options', 'dry-run')
+    dry_run = conf.getboolean('options', 'dry-run')
     new_tree = old_tree.copy()
-    uploader = FileUploader(cp, cp.st)
+    print("new_tree: {}".format(new_tree.entries))
+    uploader = FileUploader(conf, conf.st)
     uploader.start()
 
     def store_file_small(full_path, uukey, target_path):
@@ -125,17 +124,24 @@ def do_freeze(cp, old_tree, target_name):
         new_tree.entries[target_path] = tree.SymlinkEntry(symlink_target)
 
 
-    root_path = cp.get('targets', target_name)
-    ar = archiver.Archiver(cp, target_name)
+    root_path = conf.get('targets', target_name)
+    ar = archiver.Archiver(conf, target_name)
     ar.set_callback(store_archive)
 
-    # TODO: Use files_to_consider
-    for (full_path, target_path) in files_to_consider(cp, target_name):
+    for (full_path, target_path) in files_to_consider(conf, target_name):
         log(StartedProcessingFile(target_path, full_path))
 
+        try:
+            sb = os.stat(full_path)
+        except OSError as e:
+            if e.errno == errno.ENOENT or e.errno == errno.EPERM:
+                log(ProcessFileResult('Skip', 'Errno {}'.format(e.errno)))
+                continue
+
         # Should we skip this file?
-        if should_skip(cp, target_path, full_path, old_tree):
-            log(ProcessFileResult('Skip'))
+        skip_reason = should_skip(conf, sb, target_path, old_tree)
+        if skip_reason:
+            log(ProcessFileResult('Skip', skip_reason))
             continue
 
         # Symlinks
@@ -146,21 +152,23 @@ def do_freeze(cp, old_tree, target_name):
 
         # Hash and check if data already stored
         uukey, file_size = uukey_and_size(full_path)
-        if cp.getboolean('options', 'tree-only'):
+        if conf.getboolean('options', 'tree-only'):
             new_tree.files[target_path] = tree.TreeEntry(uukey, None)
             log(ProcessFileResult('{}'.format(uukey[:32])))
             continue
 
         # TODO: posix stuff
-        new_tree.entries[target_path] = tree.FileEntry(0, 0, 0, uukey, datetime.utcnow())
+        new_tree.entries[target_path] = \
+            tree.FileEntry(sb.st_uid, sb.st_gid, stat.S_IMODE(sb.st_mode),
+                           uukey, datetime.utcnow())
         if not new_tree.is_stored(uukey):
-            if file_size <= cp.getint('options', 'filesize-limit'):
+            if file_size <= conf.getint('options', 'filesize-limit'):
                 store_file_small(full_path, uukey, target_path)
             else:
                 store_file_large(full_path, uukey, target_path)
             log(ProcessFileResult('{}'.format(uukey[:32])))
         else:
-            print('ERROR: should be skipped')
+            log(ProcessFileResult('Skip', 'Already stored'))
 
 
     # Update archive IDs

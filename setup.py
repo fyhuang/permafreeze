@@ -31,6 +31,7 @@ setup(name='permafreeze',
 
       install_requires=[
           'boto',
+          'future',
           ],
 
       ext_modules=[hasher_module],
